@@ -1,0 +1,16 @@
+node_modules
+dist
+.turbo
+.expo
+.env
+.env.*
+!.env.example
+*.log
+ios
+android
+.DS_Store
+.sync.zip
+# Arquivos reais de clientes (contornos e linhas da fazenda): nunca vão para o Git
+dados-fazenda
+# Banco embutido de desenvolvimento
+.dados

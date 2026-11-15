@@ -1,0 +1,25 @@
+{
+  "name": "talhio",
+  "private": true,
+  "packageManager": "pnpm@10.28.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "typecheck": "turbo typecheck",
+    "lint": "turbo lint",
+    "test": "turbo test",
+    "api": "pnpm pacotes && pnpm --filter @talhio/api dev",
+    "mobile": "pnpm pacotes && pnpm --filter @talhio/mobile start",
+    "ios": "pnpm pacotes && pnpm --filter @talhio/mobile ios",
+    "android": "pnpm pacotes && pnpm --filter @talhio/mobile android",
+    "site": "pnpm --filter @talhio/site dev",
+    "pacotes": "pnpm --filter \"./packages/*\" build"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.0",
+    "typescript": "^6.0.2"
+  }
+}

@@ -1,0 +1,14 @@
+# Nada disto entra na imagem da API.
+**/node_modules
+**/dist
+**/.turbo
+**/.env
+**/.env.*
+**/.dados
+dados-fazenda
+apps/mobile
+apps/site
+docs
+.git
+*.log
+.sync.zip

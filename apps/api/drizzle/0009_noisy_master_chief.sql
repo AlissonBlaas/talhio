@@ -1,0 +1,1 @@
+ALTER TABLE "uso_diario" ADD COLUMN "combustivel_l" double precision;

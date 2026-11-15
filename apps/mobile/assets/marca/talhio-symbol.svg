@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="145" viewBox="0 0 160 145" role="img" aria-label="Talhio">
+<g fill="none" stroke-linecap="round" stroke-linejoin="round">
+<path d="M18 58 Q66 21 142 23" stroke="#E7B31F" stroke-width="13"/>
+<path d="M18 84 Q68 48 142 49" stroke="#3F7A2C" stroke-width="13"/>
+<path d="M18 110 Q69 75 142 75" stroke="#15321F" stroke-width="13"/>
+<path d="M41 121 Q86 96 142 100" stroke="#15321F" stroke-width="11" stroke-dasharray="12 14"/>
+</g>
+</svg>

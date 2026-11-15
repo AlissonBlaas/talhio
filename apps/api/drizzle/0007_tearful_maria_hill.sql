@@ -1,0 +1,1 @@
+ALTER TABLE "conexoes_deere" ADD COLUMN "deere_org_extras" text DEFAULT '' NOT NULL;

@@ -1,0 +1,1283 @@
+/*
+ * Marca do Talhio.
+ * Ideia: o que o agrônomo não vê é a passada, a linha que a máquina deixa no talhão. O símbolo e a
+ * página inteira usam isso: linha cheia é o que já foi feito, linha tracejada é o que falta.
+ * Cores com função: verde lavoura (a planta, o fundo), milho (o que está feito, o destaque), folha
+ * (máquina trabalhando), terra (a tinta, o solo) e algodão (o papel do relatório).
+ * Tipografia: Outfit, geométrica e arredondada, nos títulos e números; Nunito Sans no texto.
+ * Formas: sempre arredondadas (pílulas, raios grandes), como no aplicativo.
+ */
+:root {
+  --mata: #15321f;
+  --mata-2: #1e4429;
+  --folha-media: #2e6a39;
+  --milho: #e7b31f;
+  --folha: #3f7a2c;
+  --folha-clara: #9cc46a;
+  --algodao: #f1f2ec;
+  --papel: #fbfaf4;
+  --giz: #d6d9cc;
+  --tinta: #26201a;
+  --tinta-suave: #5f564c;
+  --titulo: "Outfit", system-ui, sans-serif;
+  --corpo: "Nunito Sans", system-ui, sans-serif;
+
+  /* Cores que mudam com o fundo. Aqui, o fundo claro. */
+  --fg: var(--tinta);
+  --fg-suave: var(--tinta-suave);
+  --linha: var(--giz);
+  --destaque: var(--folha);
+}
+
+/* Fundos escuros: texto de algodão, destaque em milho. */
+.topo,
+.heroi,
+.escuro,
+.secao-verde,
+.rodape {
+  --fg: var(--algodao);
+  --fg-suave: #cfdcc9;
+  --linha: rgba(241, 242, 236, 0.2);
+  --destaque: var(--milho);
+  color: var(--fg);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 76px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--algodao);
+  color: var(--fg);
+  font-family: var(--corpo);
+  font-size: 1.125rem;
+  line-height: 1.65;
+}
+
+h1,
+h2,
+h3,
+p,
+ul,
+ol,
+figure {
+  margin: 0;
+}
+
+ul,
+ol {
+  padding: 0;
+  list-style: none;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--titulo);
+  font-weight: 700;
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: clamp(2.4rem, 5.2vw, 4.2rem);
+  font-weight: 800;
+  line-height: 1.04;
+  letter-spacing: -0.02em;
+}
+
+h2 {
+  font-size: clamp(2rem, 4vw, 3.1rem);
+  font-weight: 800;
+  line-height: 1.08;
+  letter-spacing: -0.015em;
+}
+
+h3 {
+  font-size: 1.4rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+a {
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 3px solid var(--milho);
+  outline-offset: 3px;
+}
+
+.largura {
+  width: min(1160px, 100% - 40px);
+  margin-inline: auto;
+}
+
+.suave {
+  color: var(--fg-suave);
+}
+
+.legenda {
+  margin-top: 14px;
+  font-size: 0.8125rem;
+  color: var(--fg-suave);
+}
+
+/* Botões */
+.botao {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  padding: 0 26px;
+  border: 2px solid var(--milho);
+  border-radius: 999px;
+  background: var(--milho);
+  color: var(--mata);
+  font: 700 1.05rem/1 var(--titulo);
+  letter-spacing: 0;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.botao:hover {
+  background: #f0c448;
+  border-color: #f0c448;
+}
+
+.botao-contorno {
+  background: transparent;
+  color: var(--fg);
+  border-color: var(--linha);
+}
+
+.botao-contorno:hover {
+  background: rgba(241, 242, 236, 0.1);
+  border-color: var(--fg);
+}
+
+.botao-pequeno {
+  min-height: 42px;
+  padding: 0 18px;
+  font-size: 1.15rem;
+}
+
+/* Topo */
+.topo {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--mata);
+  border-bottom: 1px solid var(--linha);
+}
+
+.topo-linha {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-height: 68px;
+}
+
+.marca {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font: 800 1.7rem/1 var(--titulo);
+  text-decoration: none;
+}
+
+.topo nav {
+  display: flex;
+  gap: 28px;
+  margin-left: auto;
+}
+
+.topo nav a {
+  font: 600 1rem/1 var(--titulo);
+  letter-spacing: 0;
+  text-decoration: none;
+  color: var(--fg-suave);
+}
+
+.topo nav a:hover {
+  color: var(--fg);
+}
+
+/* Abertura */
+.heroi {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: var(--mata);
+}
+
+.heroi-grade {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.75fr);
+  gap: clamp(32px, 6vw, 88px);
+  align-items: end;
+  min-height: min(760px, calc(100svh - 68px));
+  padding: clamp(56px, 9vw, 112px) 0 clamp(56px, 8vw, 96px);
+}
+
+.heroi-texto {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 28px;
+}
+
+.heroi h1 span {
+  display: block;
+}
+
+.heroi-sub {
+  max-width: 34rem;
+  font-size: 1.25rem;
+  color: var(--fg-suave);
+}
+
+.heroi-acoes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* Fundo em vídeo */
+.fundo-campo,
+.fundo-linhas,
+.fundo-video,
+.fundo-sombra {
+  position: absolute;
+  inset: 0;
+}
+
+.fundo-campo {
+  z-index: -1;
+  background: var(--mata);
+}
+
+/* Sem vídeo: fileiras de plantio deslizando devagar. */
+.fundo-linhas {
+  inset: -40% -30% -10%;
+  background-image: repeating-linear-gradient(90deg, rgba(231, 179, 31, 0.3) 0 2px, transparent 2px 64px), repeating-linear-gradient(90deg, rgba(30, 68, 41, 0.9) 0 32px, rgba(21, 50, 31, 0.9) 32px 64px);
+  transform: perspective(900px) rotateX(62deg) rotateZ(-14deg);
+  transform-origin: 50% 100%;
+  animation: fileiras 14s linear infinite;
+}
+
+@keyframes fileiras {
+  to {
+    background-position: 64px 0, 64px 0;
+  }
+}
+
+.fundo-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation: surgir-video 0.8s ease-out both;
+}
+
+@keyframes surgir-video {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Escurece o vídeo para o texto ficar legível em qualquer cena. */
+.fundo-sombra {
+  background: linear-gradient(90deg, rgba(21, 50, 31, 0.9) 0%, rgba(21, 50, 31, 0.6) 55%, rgba(21, 50, 31, 0.35) 100%), linear-gradient(180deg, rgba(21, 50, 31, 0.35) 0%, rgba(21, 50, 31, 0.7) 100%);
+}
+
+/* O relatório, em papel: a peça que a página inteira promete. */
+.papel {
+  position: relative;
+  padding: 28px 28px 24px;
+  background: var(--papel);
+  color: var(--tinta);
+  --fg: var(--tinta);
+  --fg-suave: var(--tinta-suave);
+  --linha: #cfcfc2;
+  border-radius: 28px;
+  box-shadow: 0 24px 40px -18px rgba(0, 0, 0, 0.55);
+}
+
+.relatorio {
+  justify-self: end;
+  width: min(420px, 100%);
+  transform: rotate(-1.6deg);
+  animation: assentar 0.8s 0.25s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes assentar {
+  from {
+    opacity: 0;
+    transform: translateY(28px) rotate(1deg);
+  }
+}
+
+.papel-titulo {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid var(--tinta);
+}
+
+.papel-titulo h2,
+.papel-titulo h3 {
+  font-size: 1.9rem;
+}
+
+.papel-titulo span {
+  font-size: 0.8125rem;
+  color: var(--tinta-suave);
+}
+
+.relatorio-numeros {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 4px 0 16px;
+}
+
+.relatorio-numeros div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 16px 12px 14px 0;
+  border-bottom: 1px dashed var(--linha);
+}
+
+.relatorio-numeros div + div {
+  padding-left: 12px;
+  border-left: 1px dashed var(--linha);
+}
+
+.relatorio-numeros strong {
+  font: 800 2.3rem/1 var(--titulo);
+}
+
+.relatorio-numeros span {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.relatorio-numeros small {
+  font-size: 0.75rem;
+  color: var(--folha);
+  font-weight: 500;
+}
+
+.relatorio-maquinas {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.relatorio-maquinas div {
+  display: grid;
+  grid-template-columns: 7.2rem minmax(0, 1fr) 3rem;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.9375rem;
+}
+
+.relatorio-maquinas strong {
+  text-align: right;
+  font-weight: 700;
+}
+
+.relatorio-maquinas i {
+  display: block;
+  height: 10px;
+  background: repeating-linear-gradient(90deg, #cfcfc2 0 4px, transparent 4px 8px);
+}
+
+.relatorio-maquinas b {
+  display: block;
+  height: 100%;
+  background: var(--folha);
+}
+
+.relatorio-resumo {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--linha);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+}
+
+.papel .legenda {
+  margin-top: 12px;
+}
+
+/* Seções */
+.secao {
+  padding: clamp(64px, 9vw, 116px) 0;
+}
+
+.escuro {
+  background: var(--mata);
+}
+
+.secao-verde {
+  background: var(--folha-media);
+}
+
+.secao-intro {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 44rem;
+}
+
+.secao-intro p {
+  font-size: 1.25rem;
+  color: var(--fg-suave);
+}
+
+.secao-intro .legenda {
+  margin-top: 0;
+  font-size: 0.8125rem;
+}
+
+.duas-colunas {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(32px, 7vw, 104px);
+  align-items: start;
+}
+
+/* O tempo do agrônomo: o que sai da rotina, riscado, e o que entra no lugar. */
+.tempo {
+  margin-top: 48px;
+}
+
+.tempo h3 {
+  margin-bottom: 18px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid var(--fg);
+}
+
+.tempo li {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--linha);
+}
+
+.tempo-antes li {
+  color: var(--fg-suave);
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+  text-decoration-color: rgba(102, 89, 77, 0.55);
+}
+
+.tempo-depois li {
+  position: relative;
+  padding-left: 28px;
+  font-weight: 500;
+}
+
+.tempo-depois li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 1.15em;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--folha);
+}
+
+/* Relatórios: três colunas de texto corrido, separadas por fio. */
+.tres {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  margin-top: 48px;
+  border-top: 2px solid var(--fg);
+}
+
+.tres li {
+  padding: 24px 28px 0 0;
+}
+
+.tres li + li {
+  padding-left: 28px;
+  border-left: 1px solid var(--linha);
+}
+
+.tres h3 {
+  margin-bottom: 10px;
+}
+
+.tres p {
+  color: var(--fg-suave);
+}
+
+/* IA */
+.chat-coluna {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+/* A conversa, como no aplicativo: topo verde, balões, atalhos em pílula e o campo de pergunta. */
+.chat {
+  overflow: hidden;
+  border: 1px solid var(--linha);
+  border-radius: 32px;
+  background: var(--algodao);
+  color: var(--tinta);
+  box-shadow: 0 30px 60px -28px rgba(21, 50, 31, 0.45);
+}
+
+.chat-topo {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 20px 24px;
+  border-radius: 0 0 28px 28px;
+  background: var(--mata);
+  color: var(--algodao);
+}
+
+.chat-topo div {
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-topo strong {
+  font: 800 1.45rem/1.1 var(--titulo);
+  letter-spacing: -0.01em;
+}
+
+.chat-topo div span {
+  color: #cfdcc9;
+  font-size: 0.95rem;
+  font-style: italic;
+}
+
+.chat-selo {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 15px;
+  background: var(--milho);
+  color: var(--mata);
+}
+
+.chat-mensagens {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 24px 22px 8px;
+}
+
+.fala {
+  max-width: 86%;
+  padding: 13px 18px;
+  font-size: 1.02rem;
+  line-height: 1.5;
+}
+
+.fala-voce {
+  align-self: flex-end;
+  border-radius: 24px 24px 6px 24px;
+  background: var(--milho);
+  color: var(--mata);
+  font-weight: 600;
+}
+
+.fala-ia {
+  align-self: flex-start;
+  border: 1px solid var(--giz);
+  border-radius: 24px 24px 24px 6px;
+  background: var(--papel);
+}
+
+.chat-pensando {
+  display: flex;
+  align-self: flex-start;
+  gap: 5px;
+  padding: 15px 18px;
+  border: 1px solid var(--giz);
+  border-radius: 24px 24px 24px 6px;
+  background: var(--papel);
+}
+
+.chat-pensando i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--tinta-suave);
+  opacity: 0.55;
+  animation: pensando 1.2s infinite ease-in-out;
+}
+
+.chat-pensando i:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.chat-pensando i:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes pensando {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+.chat-atalhos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 14px 22px 6px;
+}
+
+.chat-atalhos span {
+  padding: 9px 15px;
+  border: 1px solid #c5d4b5;
+  border-radius: 999px;
+  background: var(--papel);
+  color: var(--mata-2);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.chat-campo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 14px 14px;
+  padding: 6px 6px 6px 20px;
+  border: 1px solid #cfd2c3;
+  border-radius: 999px;
+  background: var(--papel);
+}
+
+.chat-campo > span {
+  flex: 1;
+  color: var(--tinta-suave);
+  font-size: 1rem;
+}
+
+.chat-campo b {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+}
+
+.chat-mic {
+  background: var(--algodao);
+  color: var(--tinta);
+}
+
+.chat-enviar {
+  background: var(--milho);
+  color: var(--mata);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-pensando i {
+    animation: none;
+  }
+}
+
+.lista-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin-top: 36px;
+}
+
+.lista-texto li {
+  padding-top: 18px;
+  border-top: 1px solid var(--linha);
+}
+
+.lista-texto h3 {
+  margin-bottom: 6px;
+  font-size: 1.55rem;
+}
+
+.lista-texto p {
+  color: var(--fg-suave);
+}
+
+/* Planejamento: foto de lavoura com o aplicativo apoiado nela. */
+.planejar-topo {
+  position: relative;
+  isolation: isolate;
+  padding: clamp(64px, 9vw, 112px) 0 0;
+  background: var(--mata) url("/video/1-lavoura.jpg") center / cover;
+}
+
+.planejar-topo::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(90deg, rgba(21, 50, 31, 0.92), rgba(21, 50, 31, 0.55));
+}
+
+.planejar-topo .largura {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: clamp(32px, 6vw, 96px);
+  align-items: start;
+}
+
+.planejar-celular {
+  margin-bottom: -112px;
+}
+
+.planejar-celular .celular {
+  margin: 0;
+}
+
+.planejar-passos {
+  padding: 72px 0 clamp(64px, 9vw, 112px);
+}
+
+.passos {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 28px;
+  max-width: calc(100% - 340px);
+}
+
+.passos li {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.passos p {
+  color: var(--fg-suave);
+  font-size: 1.0625rem;
+}
+
+.passadas {
+  display: block;
+  width: 64px;
+  height: 36px;
+  margin-bottom: 6px;
+}
+
+/* Equipe */
+.mensagens {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+  padding: 8px 0 8px 8px;
+}
+
+.mensagens .papel {
+  width: min(430px, 100%);
+}
+
+.mensagens .papel:nth-child(odd) {
+  transform: rotate(-1deg);
+}
+
+.mensagens .papel:nth-child(even) {
+  align-self: flex-end;
+  transform: rotate(1.2deg);
+}
+
+.mensagem-linhas {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 12px;
+  font-size: 0.9375rem;
+}
+
+.mensagem-linhas small {
+  margin-top: 6px;
+  align-self: flex-end;
+  color: var(--tinta-suave);
+}
+
+/* John Deere */
+.integracao li {
+  display: grid;
+  grid-template-columns: 11rem minmax(0, 1fr);
+  gap: 8px 28px;
+  padding: 22px 0;
+  border-top: 1px solid var(--linha);
+}
+
+.integracao li:last-child {
+  border-bottom: 1px solid var(--linha);
+}
+
+.estado {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font: 700 1rem/1 var(--titulo);
+  letter-spacing: 0;
+}
+
+.estado::before {
+  content: "";
+  width: 12px;
+  height: 12px;
+  flex: none;
+  border: 2px solid var(--milho);
+  border-radius: 50%;
+}
+
+.estado-pronto::before {
+  background: var(--folha);
+  border-color: var(--folha);
+}
+
+.integracao p {
+  grid-column: 2;
+  color: var(--fg-suave);
+}
+
+.integracao h3 {
+  grid-column: 2;
+  font-size: 1.6rem;
+}
+
+/* Perguntas */
+.perguntas details {
+  border-top: 1px solid var(--linha);
+}
+
+.perguntas details:last-child {
+  border-bottom: 1px solid var(--linha);
+}
+
+.perguntas summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 0;
+  font: 700 1.25rem/1.15 var(--titulo);
+  cursor: pointer;
+  list-style: none;
+}
+
+.perguntas summary::-webkit-details-marker {
+  display: none;
+}
+
+.perguntas summary::after {
+  content: "+";
+  flex: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--destaque);
+}
+
+.perguntas details[open] summary::after {
+  content: "\2212";
+}
+
+.perguntas details p {
+  padding: 0 2.5rem 22px 0;
+  color: var(--fg-suave);
+}
+
+/* Contato */
+.contato {
+  position: relative;
+  isolation: isolate;
+  padding: clamp(80px, 11vw, 148px) 0;
+  background: var(--mata) url("/video/2-colheita.jpg") center / cover;
+  color: var(--algodao);
+  --fg: var(--algodao);
+  --fg-suave: #e0d6c9;
+}
+
+.contato::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(90deg, rgba(21, 50, 31, 0.93), rgba(21, 50, 31, 0.6));
+}
+
+.contato-caixa {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 22px;
+  max-width: 46rem;
+}
+
+.contato-caixa p {
+  font-size: 1.25rem;
+  color: var(--fg-suave);
+}
+
+.pendente {
+  padding: 12px 16px;
+  border: 2px dashed var(--milho);
+  color: var(--milho);
+  font-weight: 700;
+}
+
+/* Rodapé */
+.rodape {
+  padding: 36px 0 44px;
+  background: var(--mata);
+}
+
+.rodape-linha {
+  display: flex;
+  align-items: flex-start;
+  gap: 40px;
+}
+
+.rodape-linha p {
+  max-width: 44rem;
+  font-size: 0.8125rem;
+  color: var(--fg-suave);
+}
+
+.erro {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 18px;
+  width: min(560px, 100% - 40px);
+  margin: 22vh auto;
+}
+
+.erro h1 {
+  font-size: clamp(2rem, 6vw, 3.5rem);
+}
+
+/* Telas estreitas */
+@media (max-width: 960px) {
+  .topo nav {
+    display: none;
+  }
+
+  .topo-linha {
+    justify-content: space-between;
+  }
+
+  .heroi-grade {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    min-height: 0;
+  }
+
+  .relatorio {
+    justify-self: center;
+    margin-top: 12px;
+  }
+
+  .duas-colunas {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tres {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tres li,
+  .tres li + li {
+    padding: 22px 0;
+    border-left: 0;
+    border-bottom: 1px solid var(--linha);
+  }
+
+  .planejar-topo .largura {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .planejar-celular {
+    margin-bottom: -64px;
+    justify-self: center;
+  }
+
+  .passos {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-width: none;
+    padding-top: 24px;
+  }
+
+  .integracao li {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .integracao h3,
+  .integracao p {
+    grid-column: 1;
+  }
+
+  .rodape-linha {
+    flex-direction: column;
+    gap: 18px;
+  }
+}
+
+@media (max-width: 520px) {
+  body {
+    font-size: 1rem;
+  }
+
+  .botao {
+    width: 100%;
+  }
+
+  .papel {
+    padding: 22px 18px 20px;
+  }
+
+  .relatorio-numeros strong {
+    font-size: 2.3rem;
+    white-space: nowrap;
+  }
+
+  .relatorio-maquinas div {
+    grid-template-columns: 6.2rem minmax(0, 1fr) 2.6rem;
+  }
+
+  .passos {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .relatorio,
+  .fundo-linhas,
+  .fundo-video {
+    animation: none;
+  }
+}
+
+
+/* Tela do aplicativo: a tela Início, com a mesma marca do site */
+.celular {
+  width: min(300px, 100%);
+  margin-bottom: 0;
+  padding: 9px;
+  border-radius: 44px;
+  background: #0b150f;
+  box-shadow: 0 30px 60px -20px rgba(0, 0, 0, 0.6);
+  font-family: var(--corpo);
+  color: var(--tinta);
+}
+
+.celular-tela {
+  overflow: hidden;
+  border-radius: 36px;
+  background: var(--algodao);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.celular-topo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 30px 16px 16px;
+  border-radius: 0 0 28px 28px;
+  background: var(--mata);
+  color: var(--algodao);
+}
+
+.celular-data {
+  color: #cfdcc9;
+  font-style: italic;
+}
+
+.celular-fazenda {
+  margin-bottom: 8px;
+  font: 800 1.45rem/1.1 var(--titulo);
+  letter-spacing: -0.02em;
+}
+
+.celular-contagem {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding-top: 8px;
+  border-top: 1px solid rgba(241, 242, 236, 0.2);
+}
+
+.celular-contagem div {
+  display: flex;
+  flex-direction: column;
+  padding-left: 9px;
+  border-left: 1px solid rgba(241, 242, 236, 0.2);
+  color: #cfdcc9;
+  font-size: 0.62rem;
+}
+
+.celular-contagem div:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.celular-contagem strong {
+  font: 800 1.9rem/1 var(--titulo);
+  color: var(--algodao);
+}
+
+.celular-contagem .milho {
+  color: var(--milho);
+}
+
+.celular-corpo {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 14px 22px;
+}
+
+.celular-mapa {
+  position: relative;
+  height: 124px;
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+.celular-mapa svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.celular-abrir {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: var(--milho);
+  color: var(--mata);
+  font: 700 0.7rem/1 var(--titulo);
+}
+
+.celular-andamento {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.celular-andamento > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.celular-andamento strong {
+  font: 800 1.05rem/1.1 var(--titulo);
+}
+
+.celular-andamento span {
+  color: var(--tinta-suave);
+}
+
+.celular-alerta {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 9px 0;
+  border-block: 1px solid var(--giz);
+}
+
+.celular-alerta div {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.celular-alerta strong {
+  font: 700 0.8rem/1.2 var(--titulo);
+}
+
+.celular-alerta div span {
+  color: var(--tinta-suave);
+  font-size: 0.64rem;
+}
+
+.celular-alerta-icone {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 11px;
+  background: var(--milho);
+  color: var(--mata);
+}
+
+.celular-botoes {
+  display: flex;
+  gap: 7px;
+}
+
+.celular-botoes span {
+  flex: 1;
+  padding: 11px 4px;
+  border-radius: 999px;
+  text-align: center;
+  font: 700 0.78rem/1 var(--titulo);
+}
+
+.celular-botao-cheio {
+  background: var(--milho);
+  color: var(--mata);
+}
+
+.celular-botao-contorno {
+  border: 2px solid var(--mata);
+  color: var(--mata);
+}
+
+.barra {
+  height: 8px;
+  border-radius: 4px;
+  background: #d3d8c8;
+  overflow: hidden;
+}
+
+.barra i {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--milho);
+}
