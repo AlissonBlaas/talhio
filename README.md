@@ -27,3 +27,4 @@ packages/deere   porta para a John Deere (provedor falso e real)
 
 As regras de arquitetura estão em [CLAUDE.md](./CLAUDE.md).
 # talhio
+# talhio
