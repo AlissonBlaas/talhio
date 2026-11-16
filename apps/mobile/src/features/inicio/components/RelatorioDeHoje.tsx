@@ -4,7 +4,7 @@ import { memo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { BarrasPorMaquina, indicadoresDe, rotuloDoPeriodo, textoParaCompartilhar, useRelatorio } from '@/features/relatorios';
-import { useEnviarAoGrupo } from '@/features/whatsapp';
+import { ConectarWhatsapp, useEnviarAoGrupo } from '@/features/whatsapp';
 import { Icone } from '@/shared/components/Icone';
 import { cores, fontes } from '@/shared/theme/tokens';
 
@@ -19,7 +19,7 @@ export const RelatorioDeHoje = memo(function RelatorioDeHoje() {
   const router = useRouter();
   const envio = useEnviarAoGrupo();
   if (!relatorio) return null;
-  // Com o grupo escolhido, o servidor manda o PDF e o resumo direto no grupo; sem ele, abre o WhatsApp com o texto.
+  // O servidor manda o PDF e o resumo direto no grupo da fazenda. Sem WhatsApp conectado o botão fica desligado.
   const aoEnviar = () => void envio.enviar({ texto: textoParaCompartilhar(relatorio, fazenda), relatorio: { periodo: 'dia', data: null } });
   const aoVerSemana = () => router.navigate('/relatorios');
   const [area, horas, , parado] = indicadoresDe(relatorio);
@@ -44,16 +44,17 @@ export const RelatorioDeHoje = memo(function RelatorioDeHoje() {
       <Text style={styles.resumo}>{relatorio.resumo}</Text>
 
       <View style={styles.botoes}>
-        <Pressable accessibilityRole="button" disabled={envio.enviando} onPress={aoEnviar} style={[styles.botao, styles.primario]}>
+        <Pressable accessibilityRole="button" accessibilityState={{ disabled: !envio.paraOGrupo }} disabled={envio.enviando || !envio.paraOGrupo} onPress={aoEnviar} style={[styles.botao, styles.primario, !envio.paraOGrupo && styles.desligado]}>
           <Icone nome="enviar" cor={cores.sobreMilho} tamanho={18} espessura={2.2} />
           <Text style={[styles.botaoTexto, { color: cores.sobreMilho }]} numberOfLines={1} adjustsFontSizeToFit>
-            {envio.rotulo('Enviar no WhatsApp', 'Enviar ao grupo')}
+            {envio.rotulo('Enviar ao grupo')}
           </Text>
         </Pressable>
         <Pressable accessibilityRole="button" onPress={aoVerSemana} style={[styles.botao, styles.contorno]}>
           <Text style={[styles.botaoTexto, { color: cores.mata }]}>Ver semana</Text>
         </Pressable>
       </View>
+      <ConectarWhatsapp />
     </View>
   );
 });
@@ -70,6 +71,7 @@ const styles = StyleSheet.create({
   botoes: { flexDirection: 'row', gap: 10 },
   botao: { minHeight: 48, borderRadius: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 14 },
   primario: { flex: 1.6, backgroundColor: cores.milho },
+  desligado: { opacity: 0.5 },
   contorno: { flex: 1, borderWidth: 2, borderColor: cores.mata },
   botaoTexto: { fontFamily: fontes.rotulo, fontSize: 15 },
 });

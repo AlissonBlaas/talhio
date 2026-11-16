@@ -190,6 +190,13 @@
       "when": 1794867461653,
       "tag": "0026_true_silver_centurion",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1794869930380,
+      "tag": "0027_material_sentry",
+      "breakpoints": true
     }
   ]
 }

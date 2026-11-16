@@ -7,7 +7,7 @@ import { useAlturaDaBarra } from '@/shared/components/BarraDeAbas';
 import { CabecalhoTela } from '@/shared/components/CabecalhoTela';
 import { ErroComTentarDeNovo } from '@/shared/components/estado-tela';
 import { Icone } from '@/shared/components/Icone';
-import { useEnviarAoGrupo } from '@/features/whatsapp';
+import { ConectarWhatsapp, useEnviarAoGrupo } from '@/features/whatsapp';
 import { cores, fontes, MARGEM_TELA } from '@/shared/theme/tokens';
 
 import { BarrasPorMaquina } from '../components/BarrasPorMaquina';
@@ -78,10 +78,11 @@ export function RelatoriosScreen() {
             <Surgir key={`barras-${relatorio.periodo}-${maquinaIds.join(',')}`} ordem={5}>
               <BarrasPorMaquina maquinas={relatorio.porMaquina} />
             </Surgir>
-            <Pressable accessibilityRole="button" disabled={trocando || envio.enviando} onPress={() => void envio.enviar({ texto: textoParaCompartilhar(relatorio), relatorio: { periodo, data, maquinaIds } })} style={styles.botao}>
+            <Pressable accessibilityRole="button" accessibilityState={{ disabled: !envio.paraOGrupo }} disabled={trocando || envio.enviando || !envio.paraOGrupo} onPress={() => void envio.enviar({ texto: textoParaCompartilhar(relatorio), relatorio: { periodo, data, maquinaIds } })} style={[styles.botao, !envio.paraOGrupo && styles.esmaecido]}>
               <Icone nome="enviar" cor={cores.sobreMilho} tamanho={20} espessura={2.2} />
-              <Text style={styles.botaoTexto}>{envio.rotulo('Enviar no WhatsApp')}</Text>
+              <Text style={styles.botaoTexto}>{envio.rotulo()}</Text>
             </Pressable>
+            <ConectarWhatsapp />
             <Pressable
               accessibilityRole="button"
               disabled={trocando || baixando}

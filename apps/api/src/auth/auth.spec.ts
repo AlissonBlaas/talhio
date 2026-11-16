@@ -1,3 +1,4 @@
+import { SessaoSchema } from '@talhio/shared';
 import { Test } from '@nestjs/testing';
 import { BANCO } from '../banco/banco.module.js';
 import { criarBancoDeTeste } from '../banco/banco-de-teste.js';
@@ -11,7 +12,7 @@ import { UsuariosRepository } from './usuarios.repository.js';
 
 const CONFIG_TESTE = { orgId: 'org-demo', jwtSegredo: 'segredo-de-teste-com-mais-de-32-caracteres', adminEmail: 'admin@teste.com', adminSenha: 'senha-de-teste-1', adminNome: 'Admin', cadastroAberto: true };
 
-async function montar(config = CONFIG_TESTE) {
+async function montar(config: typeof CONFIG_TESTE & { cadastroComAprovacao?: boolean; aprovacaoChave?: string } = CONFIG_TESTE) {
   const modulo = await Test.createTestingModule({
     providers: [AuthService, TokenService, UsuariosRepository, SessoesRepository, BloqueioService, { provide: BANCO, useValue: await criarBancoDeTeste() }, { provide: CONFIG, useValue: config }],
   }).compile();
@@ -141,7 +142,7 @@ describe('cadastro de conta nova', () => {
 
   it('cria a fazenda e o administrador e já abre a sessão', async () => {
     const { auth, tokens } = await montar();
-    const sessao = await auth.cadastrar(dados);
+    const sessao = SessaoSchema.parse(await auth.cadastrar(dados));
     expect(sessao.usuario).toMatchObject({ nome: 'Maria', email: 'maria@fazenda.com', papel: 'admin' });
     expect(sessao.usuario.orgId).not.toBe('org-demo');
     expect((await tokens.ler(sessao.tokenAcesso))?.orgId).toBe(sessao.usuario.orgId);
@@ -151,8 +152,8 @@ describe('cadastro de conta nova', () => {
 
   it('cada conta nova tem a sua própria fazenda', async () => {
     const { auth } = await montar();
-    const a = await auth.cadastrar(dados);
-    const b = await auth.cadastrar({ ...dados, email: 'joao@fazenda.com' });
+    const a = SessaoSchema.parse(await auth.cadastrar(dados));
+    const b = SessaoSchema.parse(await auth.cadastrar({ ...dados, email: 'joao@fazenda.com' }));
     expect(a.usuario.orgId).not.toBe(b.usuario.orgId);
   });
 
@@ -168,5 +169,40 @@ describe('cadastro de conta nova', () => {
     const erro = await auth.cadastrar(dados).catch((e) => e.getResponse());
     expect(erro.codigo).toBe('CADASTRO_FECHADO');
   });
-});
 
+  describe('com aprovação', () => {
+    const CHAVE = 'chave-de-aprovacao-de-teste-123';
+    const COM_APROVACAO = { ...CONFIG_TESTE, cadastroComAprovacao: true, aprovacaoChave: CHAVE };
+
+    it('a conta nova fica em análise: não abre sessão e não entra até ser aprovada', async () => {
+      const { auth } = await montar(COM_APROVACAO);
+      expect(await auth.cadastrar(dados)).toEqual({ aguardandoAprovacao: true });
+      const erro = await auth.entrar(dados.email, dados.senha).catch((e) => e.getResponse());
+      expect(erro.codigo).toBe('CONTA_AGUARDANDO_APROVACAO');
+      // Senha errada continua com a mensagem de sempre: não entrega que a conta existe e está em análise.
+      expect((await auth.entrar(dados.email, 'senha-errada-1').catch((e) => e.getResponse())).codigo).not.toBe('CONTA_AGUARDANDO_APROVACAO');
+
+      expect(await auth.pedidos(CHAVE)).toEqual([expect.objectContaining({ nome: 'Maria', email: dados.email, fazenda: dados.fazenda })]);
+      await auth.aprovar(CHAVE, dados.email);
+      expect(await auth.pedidos(CHAVE)).toEqual([]);
+      expect((await auth.entrar(dados.email, dados.senha)).usuario.email).toBe(dados.email);
+      // Aprovar de novo, ou um e-mail que não pediu, não acha nada.
+      await expect(auth.aprovar(CHAVE, dados.email)).rejects.toMatchObject({ status: 404 });
+    });
+
+    it('sem a chave certa (ou sem chave configurada) as rotas de aprovação não respondem', async () => {
+      const { auth } = await montar(COM_APROVACAO);
+      await auth.cadastrar(dados);
+      await expect(auth.pedidos('chave-errada-de-mesmo-tamanho-1234')).rejects.toMatchObject({ status: 404 });
+      await expect(auth.pedidos(undefined)).rejects.toMatchObject({ status: 404 });
+      await expect(auth.aprovar('x', dados.email)).rejects.toMatchObject({ status: 404 });
+      const semChave = (await montar({ ...CONFIG_TESTE, cadastroComAprovacao: true })).auth;
+      await expect(semChave.pedidos('')).rejects.toMatchObject({ status: 404 });
+    });
+
+    it('o administrador do servidor continua entrando', async () => {
+      const { auth } = await montar(COM_APROVACAO);
+      expect((await auth.entrar('admin@teste.com', 'senha-de-teste-1')).usuario.papel).toBe('admin');
+    });
+  });
+});

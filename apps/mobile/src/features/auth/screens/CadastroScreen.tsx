@@ -1,4 +1,5 @@
 import { CadastrarSchema } from '@talhio/shared';
+import { useRouter } from 'expo-router';
 import { useRef, useState, type ComponentRef, type RefObject } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -56,7 +57,8 @@ function CampoTexto({ rotulo, valor, aoMudar, aoEnviar, proximo, desabilitado, c
 /** Conta nova: cria a fazenda e o primeiro usuário, que é o administrador. */
 export function CadastroScreen() {
   const { bottom } = useSafeAreaInsets();
-  const { cadastrar, cadastrando, erro, limparErro } = useCadastrar();
+  const router = useRouter();
+  const { cadastrar, cadastrando, emAnalise, erro, limparErro } = useCadastrar();
   const [dados, setDados] = useState({ nome: '', fazenda: '', email: '', senha: '' });
   const [tentou, setTentou] = useState(false);
   const refNome = useRef<ComponentRef<typeof TextInput>>(null);
@@ -75,9 +77,32 @@ export function CadastroScreen() {
     if (validacao.success) cadastrar(validacao.data);
   };
 
+  // Cadastro recebido: a conta existe, mas só entra depois que a gente libera.
+  if (emAnalise) {
+    return (
+      <View style={styles.tela}>
+        <CabecalhoTela titulo="Cadastro recebido" subtitulo="Falta só a nossa liberação." />
+        <View style={[styles.conteudo, { paddingBottom: Math.max(bottom, 16) + 24 }]}>
+          <View accessibilityRole="alert" style={styles.recebido}>
+            <Text style={styles.recebidoTitulo}>Vamos entrar em contato</Text>
+            <Text style={styles.recebidoTexto}>
+              Recebemos o cadastro de {dados.fazenda.trim()}. Cada conta nova passa pela nossa aprovação antes de ser ativada.
+            </Text>
+            <Text style={styles.recebidoTexto}>
+              Avisamos em {dados.email.trim().toLowerCase()} quando a conta estiver liberada. Aí é só entrar com esse e-mail e a senha que você acabou de criar.
+            </Text>
+          </View>
+          <Pressable accessibilityRole="button" onPress={() => router.replace('/login')} style={styles.botao}>
+            <Text style={styles.botaoTexto}>Voltar para o login</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <KeyboardAvoidingView style={styles.tela} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <CabecalhoTela titulo="Criar conta" subtitulo="Você será o administrador da fazenda." voltar />
+      <CabecalhoTela titulo="Criar conta" subtitulo="Você será o administrador da fazenda. A conta é ativada depois da nossa aprovação." voltar />
       <ScrollView contentContainerStyle={[styles.conteudo, { paddingBottom: Math.max(bottom, 16) + 24 }]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <CampoTexto
           rotulo="Seu nome"
@@ -153,6 +178,9 @@ const styles = StyleSheet.create({
   erroCampo: { fontFamily: fontes.regular, fontSize: 12, lineHeight: 15, color: cores.perigo },
   erro: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: cores.perigoFundo, borderWidth: 1, borderColor: cores.perigoBorda, borderRadius: 22, paddingVertical: 12, paddingHorizontal: 14 },
   erroTexto: { flex: 1, fontFamily: fontes.medio, fontSize: 13, lineHeight: 18, color: cores.perigoTexto },
+  recebido: { backgroundColor: cores.primarioSuave, borderRadius: 24, padding: 18, gap: 10 },
+  recebidoTitulo: { fontFamily: fontes.titulo, fontSize: 20, lineHeight: 24, color: cores.textoSobreSuave },
+  recebidoTexto: { fontFamily: fontes.regular, fontSize: 15, lineHeight: 22, color: cores.textoSobreSuave },
   botao: { height: 54, borderRadius: 999, backgroundColor: cores.milho, alignItems: 'center', justifyContent: 'center' },
   botaoTexto: { fontFamily: fontes.rotulo, fontSize: 17, color: cores.sobreMilho },
 });

@@ -66,8 +66,10 @@ export function useEscalaDoPlano(plano: Plano) {
     enviando,
     /** true quando o envio dispara direto no grupo do WhatsApp da fazenda. */
     paraOGrupo: envio.paraOGrupo,
+    /** Por que não dá para enviar ("Conecte o WhatsApp"...). Nulo = dá. Sem envio, o botão só grava a escala. */
+    falta: envio.falta,
     enviada: linhas.length > 0 && linhas.every((l) => l.enviada),
-    /** Grava a escala das máquinas do plano, manda a mensagem (ao grupo da fazenda ou pelo WhatsApp do aparelho) e registra o envio. */
+    /** Grava a escala das máquinas do plano e, com o WhatsApp da fazenda conectado, manda a mensagem ao grupo e registra o envio. */
     enviar: async () => {
       setTentou(true);
       if (invalida || enviando) return;
@@ -78,7 +80,7 @@ export function useEscalaDoPlano(plano: Plano) {
           dados: { operador: l.operador.trim(), turno: l.turno, tarefa: tarefaDoPlano(plano), talhaoId: plano.talhoes[0]?.id ?? null, substitui: l.turnoGravado },
         }));
         await mudar.definirVarias(itens);
-        // Só registra o envio se a mensagem saiu (no grupo da fazenda ou pelo WhatsApp do aparelho).
+        // Só registra o envio se a mensagem saiu no grupo da fazenda. Sem WhatsApp conectado, a escala fica só gravada.
         if (await envio.enviar({ texto: mensagemDaEscala(plano, linhas) })) mudar.marcarEnviada(linhas.map((l) => l.maquinaId));
         setMudancas({});
       } catch {

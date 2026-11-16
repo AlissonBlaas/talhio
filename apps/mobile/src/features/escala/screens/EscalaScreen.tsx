@@ -8,7 +8,7 @@ import { useAlturaDaBarra } from '@/shared/components/BarraDeAbas';
 import { CabecalhoTela } from '@/shared/components/CabecalhoTela';
 import { Carregando, ErroComTentarDeNovo } from '@/shared/components/estado-tela';
 import { Icone } from '@/shared/components/Icone';
-import { useEnviarAoGrupo } from '@/features/whatsapp';
+import { ConectarWhatsapp, useEnviarAoGrupo } from '@/features/whatsapp';
 import { cores, fontes, MARGEM_TELA } from '@/shared/theme/tokens';
 
 import { EditorDaEscala } from '../components/EditorDaEscala';
@@ -133,7 +133,7 @@ export function EscalaScreen() {
               <View style={styles.avisoIcone}>
                 <Icone nome="enviar" cor={cores.textoSobreSuave} tamanho={18} espessura={2} />
               </View>
-              <Text style={styles.avisoTexto}>Toque em um turno para mudar o operador, ou em "Adicionar turno" para pôr outra pessoa na mesma máquina. A escala vai em uma mensagem só, pronta para o grupo da equipe no WhatsApp.</Text>
+              <Text style={styles.avisoTexto}>Toque em um turno para mudar o operador, ou em "Adicionar turno" para pôr outra pessoa na mesma máquina. A escala vai em uma mensagem só, direto no grupo da equipe no WhatsApp.</Text>
             </View>
 
             {troca ? (
@@ -144,8 +144,8 @@ export function EscalaScreen() {
                   <Pressable accessibilityRole="button" disabled={avisando} onPress={() => setTroca(null)} style={styles.trocaNao}>
                     <Text style={styles.trocaNaoTexto}>Não avisar</Text>
                   </Pressable>
-                  <Pressable accessibilityRole="button" disabled={avisando} onPress={() => void avisar()} style={styles.trocaSim}>
-                    <Text style={styles.botaoTexto}>{avisando ? 'Enviando…' : envio.paraOGrupo ? 'Avisar no grupo' : 'Avisar no WhatsApp'}</Text>
+                  <Pressable accessibilityRole="button" disabled={avisando || !envio.paraOGrupo} onPress={() => void avisar()} style={[styles.trocaSim, !envio.paraOGrupo && styles.botaoDesabilitado]}>
+                    <Text style={[styles.botaoTexto, !envio.paraOGrupo && styles.botaoTextoDesabilitado]} numberOfLines={1} adjustsFontSizeToFit>{avisando ? 'Enviando…' : (envio.falta ?? 'Avisar no grupo')}</Text>
                   </Pressable>
                 </View>
               </View>
@@ -154,13 +154,14 @@ export function EscalaScreen() {
 
             <Pressable
               accessibilityRole="button"
-              disabled={comOperador.length === 0 || envio.enviando}
+              disabled={comOperador.length === 0 || envio.enviando || !envio.paraOGrupo}
               onPress={() => void enviar()}
-              style={[styles.botao, enviada && styles.botaoEnviada, comOperador.length === 0 && styles.botaoDesabilitado]}>
-              <Text style={[styles.botaoTexto, enviada && styles.botaoTextoEnviada, comOperador.length === 0 && styles.botaoTextoDesabilitado]}>
-                {comOperador.length === 0 ? 'Escolha os operadores para enviar' : envio.enviando ? 'Enviando ao grupo…' : enviada ? 'Escala enviada · enviar de novo' : envio.paraOGrupo ? 'Enviar escala ao grupo' : 'Enviar escala no WhatsApp'}
+              style={[styles.botao, enviada && styles.botaoEnviada, (comOperador.length === 0 || !envio.paraOGrupo) && styles.botaoDesabilitado]}>
+              <Text style={[styles.botaoTexto, enviada && styles.botaoTextoEnviada, (comOperador.length === 0 || !envio.paraOGrupo) && styles.botaoTextoDesabilitado]}>
+                {envio.falta ?? (comOperador.length === 0 ? 'Escolha os operadores para enviar' : envio.enviando ? 'Enviando ao grupo…' : enviada ? 'Escala enviada · enviar de novo' : 'Enviar escala ao grupo')}
               </Text>
             </Pressable>
+            <ConectarWhatsapp />
           </View>
         )}
       </ScrollView>

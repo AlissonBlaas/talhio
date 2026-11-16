@@ -17,6 +17,13 @@ const EnvSchema = z.object({
   NODE_ENV: z.string().optional(),
   /** Qualquer pessoa pode criar conta e fazenda pelo app. "0" fecha o cadastro (convite manual). */
   CADASTRO_ABERTO: z.enum(['0', '1']).default('1'),
+  /**
+   * Conta nova fica esperando a nossa aprovação antes de conseguir entrar. Sem valor: ligado em produção, desligado
+   * no desenvolvimento (para criar conta e já usar).
+   */
+  CADASTRO_COM_APROVACAO: z.enum(['0', '1']).optional(),
+  /** Chave de quem aprova os cadastros (cabeçalho `x-chave-de-aprovacao`). Sem ela, as rotas de aprovação não existem. */
+  APROVACAO_CHAVE: z.string().min(24).optional(),
   /** Aplicativo cadastrado no portal da John Deere (Application ID e Secret). */
   DEERE_CLIENT_ID: z.string().min(1).optional(),
   DEERE_CLIENT_SECRET: z.string().min(1).optional(),
@@ -99,6 +106,10 @@ export interface DeereAcesso {
 
 export interface Config {
   cadastroAberto: boolean;
+  /** Conta nova só entra depois de aprovada por nós. */
+  cadastroComAprovacao?: boolean;
+  /** Chave das rotas de aprovação; nulo = rotas desligadas. */
+  aprovacaoChave?: string | null;
   /** Dados do app na Deere; nulo enquanto faltar alguma variável (o provedor falso não precisa). */
   deere: DeereAcesso | null;
   porta: number;
@@ -180,6 +191,8 @@ export function carregarConfig(env: NodeJS.ProcessEnv = process.env): Config {
 
   return {
     cadastroAberto: d.CADASTRO_ABERTO === '1',
+    cadastroComAprovacao: d.CADASTRO_COM_APROVACAO ? d.CADASTRO_COM_APROVACAO === '1' : d.NODE_ENV === 'production',
+    aprovacaoChave: d.APROVACAO_CHAVE ?? null,
     deere,
     porta: r.data.PORT,
     deereProvedor: r.data.DEERE_PROVEDOR,

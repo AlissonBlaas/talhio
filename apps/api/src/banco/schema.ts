@@ -26,6 +26,8 @@ export const usuarios = pgTable(
     senhaHash: text('senha_hash').notNull(),
     /** admin = pode tudo na fazenda; leitura = só consulta. */
     papel: text('papel', { enum: ['admin', 'leitura'] }).notNull().default('admin'),
+    /** false = conta nova esperando a nossa aprovação: existe, mas não consegue entrar. */
+    ativo: boolean('ativo').notNull().default(true),
     criadoEm: criadoEm(),
   },
   (t) => [index('usuarios_org_idx').on(t.orgId)],

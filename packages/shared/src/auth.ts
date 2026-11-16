@@ -30,6 +30,19 @@ export const SessaoSchema = z.object({
 });
 export type Sessao = z.infer<typeof SessaoSchema>;
 
+/**
+ * Resposta do cadastro quando a conta precisa da nossa aprovação: ela foi criada, mas ainda não entra.
+ * (Sem aprovação ligada, o cadastro devolve uma `Sessao` e a pessoa já está dentro.)
+ */
+export const CadastroEmAnaliseSchema = z.object({ aguardandoAprovacao: z.literal(true) });
+export const ResultadoDoCadastroSchema = z.union([SessaoSchema, CadastroEmAnaliseSchema]);
+export type ResultadoDoCadastro = z.infer<typeof ResultadoDoCadastroSchema>;
+
+/** Um cadastro esperando aprovação, para quem aprova. */
+export const PedidoDeCadastroSchema = z.object({ nome: z.string(), email: z.string(), fazenda: z.string(), pedidoEm: z.string() });
+export type PedidoDeCadastro = z.infer<typeof PedidoDeCadastroSchema>;
+export const AprovarCadastroSchema = z.object({ email: z.string().trim().toLowerCase().pipe(z.email('E-mail inválido').max(254)) });
+
 /** Conta nova: cria a fazenda (organização) e o primeiro usuário, que é o administrador dela. */
 export const CadastrarSchema = z.object({
   nome: z.string().trim().min(2, 'Digite seu nome').max(80),

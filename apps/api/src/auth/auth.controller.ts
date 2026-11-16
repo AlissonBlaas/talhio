@@ -1,6 +1,6 @@
-import { Body, Controller, Get, HttpCode, Inject, Ip, Post } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, Inject, Ip, Post } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { CadastrarSchema, EntrarSchema, RenovarSchema, type Renovar, type Sessao, type Usuario } from '@talhio/shared';
+import { AprovarCadastroSchema, CadastrarSchema, EntrarSchema, RenovarSchema, type PedidoDeCadastro, type Renovar, type ResultadoDoCadastro, type Sessao, type Usuario } from '@talhio/shared';
 import type { z } from 'zod';
 import { ZodPipe } from '../shared/zod.pipe.js';
 import { Publico, UsuarioAtual } from './auth.decorators.js';
@@ -23,8 +23,28 @@ export class AuthController {
   @Publico()
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('cadastrar')
-  cadastrar(@Body(new ZodPipe(CadastrarSchema)) dados: z.output<typeof CadastrarSchema>): Promise<Sessao> {
+  cadastrar(@Body(new ZodPipe(CadastrarSchema)) dados: z.output<typeof CadastrarSchema>): Promise<ResultadoDoCadastro> {
     return this.auth.cadastrar(dados);
+  }
+
+  /**
+   * Cadastros esperando a nossa aprovação. Aberta ao login (quem aprova não é usuário de nenhuma fazenda), mas só
+   * responde com a chave de aprovação no cabeçalho; sem ela, ou com ela errada, é um 404 como rota inexistente.
+   */
+  @Publico()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Get('pedidos')
+  pedidos(@Headers('x-chave-de-aprovacao') chave: string | undefined): Promise<PedidoDeCadastro[]> {
+    return this.auth.pedidos(chave);
+  }
+
+  /** Libera uma conta que estava esperando. Mesma chave. */
+  @Publico()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post('pedidos/aprovar')
+  @HttpCode(204)
+  aprovar(@Headers('x-chave-de-aprovacao') chave: string | undefined, @Body(new ZodPipe(AprovarCadastroSchema)) dados: z.output<typeof AprovarCadastroSchema>): Promise<void> {
+    return this.auth.aprovar(chave, dados.email);
   }
 
   @Publico()

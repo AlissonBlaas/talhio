@@ -1,5 +1,6 @@
-import { ConflictException, ForbiddenException, HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
-import type { Cadastrar, Sessao, Usuario } from '@talhio/shared';
+import { timingSafeEqual } from 'node:crypto';
+import { ConflictException, ForbiddenException, HttpException, HttpStatus, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import type { PedidoDeCadastro, ResultadoDoCadastro, Sessao, Usuario } from '@talhio/shared';
 import { CONFIG, type Config } from '../core/config.js';
 import { naoAutenticado } from './auth.guard.js';
 import { BloqueioService } from './bloqueio.service.js';
@@ -10,10 +11,15 @@ import { UsuariosRepository, type UsuarioGuardado } from './usuarios.repository.
 
 const DURACAO_RENOVACAO_MS = 30 * 24 * 60 * 60 * 1000;
 
+/** Senha certa, mas a conta ainda não foi aprovada por nós. */
+const emAnalise = () => new ForbiddenException({ codigo: 'CONTA_AGUARDANDO_APROVACAO', mensagem: 'Seu cadastro está em análise. Vamos entrar em contato e avisar por e-mail quando a conta for ativada.' });
+
 const publico = ({ id, nome, email, orgId, papel }: UsuarioGuardado): Usuario => ({ id, nome, email, orgId, papel });
 
 @Injectable()
 export class AuthService {
+  private readonly log = new Logger('Cadastro');
+
   constructor(
     @Inject(UsuariosRepository) private readonly usuarios: UsuariosRepository,
     @Inject(SessoesRepository) private readonly sessoes: SessoesRepository,
@@ -42,25 +48,55 @@ export class AuthService {
     }
 
     this.bloqueio.limpar(email, origem);
+    // Só depois da senha certa: quem não é o dono da conta não descobre que ela existe nem em que pé está.
+    if (!usuario.ativo) throw emAnalise();
     return this.abrirSessao(usuario);
   }
 
-  /** Conta nova: cria a fazenda e o administrador e já abre a sessão. */
-  async cadastrar(dados: { nome: string; fazenda: string; email: string; senha: string }): Promise<Sessao> {
+  /**
+   * Conta nova: cria a fazenda e o administrador. Com aprovação ligada, a conta nasce parada e a resposta avisa que
+   * entraremos em contato; sem ela, já abre a sessão.
+   */
+  async cadastrar(dados: { nome: string; fazenda: string; email: string; senha: string }): Promise<ResultadoDoCadastro> {
     if (!this.config.cadastroAberto) {
       throw new ForbiddenException({ codigo: 'CADASTRO_FECHADO', mensagem: 'O cadastro está fechado. Peça o acesso a quem administra a fazenda.' });
     }
-    const usuario = await this.usuarios.criarContaNova({ nome: dados.nome, fazenda: dados.fazenda, email: dados.email, senhaHash: await gerarHash(dados.senha) });
+    const comAprovacao = this.config.cadastroComAprovacao ?? false;
+    const usuario = await this.usuarios.criarContaNova({ nome: dados.nome, fazenda: dados.fazenda, email: dados.email, senhaHash: await gerarHash(dados.senha), ativo: !comAprovacao });
     if (!usuario) throw new ConflictException({ codigo: 'EMAIL_EM_USO', mensagem: 'Já existe uma conta com este e-mail. Entre com ela.' });
-    return this.abrirSessao(usuario);
+    if (!comAprovacao) return this.abrirSessao(usuario);
+    // Para quem aprova achar no log; a lista completa sai de GET /auth/pedidos.
+    this.log.log(`cadastro novo esperando aprovação: ${usuario.email} (${dados.fazenda})`);
+    return { aguardandoAprovacao: true };
   }
 
   /** Troca o token de renovação por uma sessão nova. O token usado deixa de valer. */
   async renovar(tokenRenovacao: string): Promise<Sessao> {
     const usuarioId = await this.sessoes.consumir(tokenRenovacao);
     const usuario = usuarioId ? await this.usuarios.buscarPorId(usuarioId) : null;
-    if (!usuario) throw naoAutenticado('Sua sessão expirou. Entre de novo.');
+    if (!usuario || !usuario.ativo) throw naoAutenticado('Sua sessão expirou. Entre de novo.');
     return this.abrirSessao(usuario);
+  }
+
+  /** Cadastros esperando aprovação. Só com a chave de aprovação certa. */
+  async pedidos(chave: string | undefined): Promise<PedidoDeCadastro[]> {
+    this.exigirChave(chave);
+    return this.usuarios.pendentes();
+  }
+
+  /** Libera uma conta que estava esperando. A pessoa passa a conseguir entrar; avisar ela é com quem aprovou. */
+  async aprovar(chave: string | undefined, email: string): Promise<void> {
+    this.exigirChave(chave);
+    if (!(await this.usuarios.aprovar(email))) throw new NotFoundException({ codigo: 'PEDIDO_NAO_ENCONTRADO', mensagem: 'Não há cadastro esperando aprovação com esse e-mail.' });
+    this.log.log(`cadastro aprovado: ${email}`);
+  }
+
+  /** Sem chave configurada as rotas respondem como se não existissem; chave errada também, para não dar pista. */
+  private exigirChave(chave: string | undefined): void {
+    const certa = this.config.aprovacaoChave;
+    const a = Buffer.from(chave ?? '');
+    const b = Buffer.from(certa ?? '');
+    if (!certa || a.length !== b.length || !timingSafeEqual(a, b)) throw new NotFoundException();
   }
 
   async sair(tokenRenovacao: string): Promise<void> {

@@ -316,6 +316,22 @@ Backend (`apps/api/src`)
   mudança?"; montar a escala pela primeira vez não gera aviso). No mapa, o painel da máquina ficou curto (talhão,
   horas, área e uma linha com velocidade/motor/sinal; o resto está em "Ver máquina") e saíram o título "Mapa da
   fazenda" e o botão "Importar" (a importação continua no Início).
+- Cadastro com aprovação (16/11, decisão do Alisson: "aprovação simples"): coluna `usuarios.ativo` (migração 0027;
+  quem já existia fica ativo). Com `CADASTRO_COM_APROVACAO` (sem valor = ligado em produção, desligado em dev e nos
+  testes), `POST /auth/cadastrar` cria a fazenda e o administrador PARADOS e devolve `{ aguardandoAprovacao: true }`
+  em vez da sessão; `entrar` com a senha certa dá 403 `CONTA_AGUARDANDO_APROVACAO` (senha errada continua com a
+  mensagem de sempre). Aprovar: `GET /auth/pedidos` e `POST /auth/pedidos/aprovar {email}`, abertas ao login mas só
+  com o cabeçalho `x-chave-de-aprovacao` = `APROVACAO_CHAVE` (24+ caracteres, no `talhio/api-env`; sem a variável ou
+  com a chave errada respondem 404). `./infra/aprovar.sh` lista e `./infra/aprovar.sh <e-mail>` libera (pede a chave
+  sem mostrar). No app, `CadastroScreen` troca o formulário pelo aviso "Vamos entrar em contato". O Talhio NÃO manda
+  e-mail: quem aprova avisa a pessoa. Não há aviso automático de cadastro novo (só o log `[Cadastro]` e a lista).
+- Enviar é só pelo WhatsApp da fazenda (16/11, pedido do Alisson: "se não tiver conectado, desativa o botão e diz
+  conecte o WhatsApp"): `useEnviarAoGrupo` NÃO abre mais o WhatsApp do aparelho. Devolve `paraOGrupo`, `falta`
+  ("Conecte o WhatsApp", "Escolha o grupo do WhatsApp", "WhatsApp indisponível", "Só o administrador envia"; nulo =
+  pode) e `rotulo()`; `enviar` sem grupo devolve false. Os botões (relatório do Início, Relatórios, escala, aviso de
+  troca) ficam desligados com o texto do que falta e `ConectarWhatsapp` (de `features/whatsapp`) mostra embaixo o
+  link para a Config. Na escala do plano o botão vira "Salvar escala" (grava sem enviar) com o aviso. A IA ganhou o
+  passo a passo de conectar o WhatsApp e a John Deere no guia do aplicativo. `shared/lib/whatsapp.ts` ficou sem uso.
 - Resposta da IA organizada (15/11): as instruções mandam começar pela frase com o número em **negrito** e, quando há
   várias partes, tabela (até 4 colunas), título `## ` e tópicos `- `; só essa marcação é permitida. No app,
   `features/assistente/formatar.ts` (`lerBlocos`, puro, aguenta resposta pela metade) e `components/TextoFormatado.tsx`

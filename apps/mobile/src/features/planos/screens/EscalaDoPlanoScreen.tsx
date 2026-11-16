@@ -4,6 +4,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { TURNOS } from '@/features/escala';
+import { ConectarWhatsapp } from '@/features/whatsapp';
 import { Carregando, ErroComTentarDeNovo } from '@/shared/components/estado-tela';
 import { CabecalhoTela } from '@/shared/components/CabecalhoTela';
 import { Icone } from '@/shared/components/Icone';
@@ -122,9 +123,12 @@ function Escala({ plano }: { plano: Plano }) {
             <Pressable accessibilityRole="button" disabled={escala.enviando} onPress={() => void escala.enviar()} style={[styles.botao, escala.enviada && styles.botaoEnviado, escala.enviando && styles.botaoEsperando]}>
               <Icone nome="enviar" cor={escala.enviada ? cores.mata : cores.sobreMilho} tamanho={18} espessura={2} />
               <Text style={[styles.botaoTexto, escala.enviada && styles.botaoTextoEnviado]}>
-                {escala.enviando ? 'Enviando...' : escala.enviada ? 'Escala enviada no WhatsApp' : escala.paraOGrupo ? 'Enviar escala ao grupo' : 'Enviar escala no WhatsApp'}
+                {escala.enviando ? (escala.paraOGrupo ? 'Enviando...' : 'Salvando...') : escala.enviada ? 'Escala enviada no WhatsApp' : escala.paraOGrupo ? 'Enviar escala ao grupo' : 'Salvar escala'}
               </Text>
             </Pressable>
+            {/* Sem WhatsApp, a escala fica gravada mas ninguém é avisado: a tela diz o que falta e onde resolver. */}
+            {escala.falta ? <Text style={styles.semWhatsapp}>{escala.falta} para a equipe receber esta escala.</Text> : null}
+            <ConectarWhatsapp />
 
             {escala.enviada && talhao ? (
               <Pressable accessibilityRole="button" onPress={() => router.navigate({ pathname: '/ao-vivo', params: { talhaoId: talhao.id } })} style={styles.proximo}>
@@ -174,6 +178,7 @@ const styles = StyleSheet.create({
   balaoTexto: { fontFamily: fontes.regular, fontSize: 13, lineHeight: 19, color: cores.dicaTexto },
   conversaNota: { fontFamily: fontes.regular, fontSize: 11, lineHeight: 15, color: cores.textoSuave },
   erro: { fontFamily: fontes.regular, fontSize: 13, lineHeight: 18, color: cores.perigoTexto, backgroundColor: cores.perigoFundo, borderWidth: 1, borderColor: cores.perigoBorda, borderRadius: 22, paddingVertical: 12, paddingHorizontal: 14, overflow: 'hidden' },
+  semWhatsapp: { fontFamily: fontes.regular, fontSize: 14, lineHeight: 20, color: cores.alerta, textAlign: 'center' },
   botao: { height: 56, borderRadius: 999, backgroundColor: cores.milho, borderWidth: 1, borderColor: cores.milho, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   botaoEnviado: { backgroundColor: cores.cartao },
   botaoEsperando: { opacity: 0.6 },
