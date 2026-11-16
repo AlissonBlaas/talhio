@@ -1,6 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { FazendaImportada } from '@talhio/deere';
-import { asc } from 'drizzle-orm';
+import { asc, eq } from 'drizzle-orm';
 import { BANCO } from '../banco/banco.module.js';
 import type { Banco } from '../banco/banco.js';
 import { fazendasImportadas } from '../banco/schema.js';
@@ -16,6 +16,12 @@ export class ImportacoesRepository {
       .insert(fazendasImportadas)
       .values({ orgId, dados, importadaEm: quando })
       .onConflictDoUpdate({ target: fazendasImportadas.orgId, set: { dados, importadaEm: quando } });
+  }
+
+  /** A fazenda importada desta organização, se houver. */
+  async buscar(orgId: string): Promise<FazendaImportada | null> {
+    const [linha] = await this.db.select({ dados: fazendasImportadas.dados }).from(fazendasImportadas).where(eq(fazendasImportadas.orgId, orgId)).limit(1);
+    return linha?.dados ?? null;
   }
 
   /**

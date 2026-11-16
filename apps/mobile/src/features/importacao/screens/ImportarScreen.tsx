@@ -10,9 +10,9 @@ import { cores, fontes, MARGEM_TELA } from '@/shared/theme/tokens';
 import { useImportarArquivos } from '../hooks/useImportarArquivos';
 
 const PASSOS = [
-  'No programa onde os talhões e as linhas foram feitos, exporte para o monitor John Deere Geração 4.',
-  'Compacte a pasta exportada em um arquivo .zip e deixe no celular (Arquivos, WhatsApp ou e-mail).',
-  'Toque em "Escolher arquivo" e selecione o .zip.',
+  'Tenha os talhões em um arquivo .kml ou .kmz (Google Earth e outros programas de mapa), ou a pasta exportada para o monitor John Deere Geração 4 compactada em .zip.',
+  'Deixe o arquivo no celular (Arquivos, WhatsApp ou e-mail).',
+  'Toque em "Escolher arquivo" e selecione. KML entra junto com os talhões que já existem; a pasta do monitor substitui a importação anterior.',
 ];
 
 export function ImportarScreen() {

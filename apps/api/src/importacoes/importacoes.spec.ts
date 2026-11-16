@@ -80,4 +80,41 @@ describe('ImportacoesService', () => {
     await expect(tentar('so-xml.zip', zip({ 'MasterData.xml': XML }))).rejects.toMatchObject({ response: { codigo: 'SEM_TALHOES' } });
     expect(await provedor.listarTalhoes()).toEqual(antes);
   });
+
+  describe('KML', () => {
+    const KML = `<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Soja 26/27</name>
+      <Placemark><name>SOJA FUTURA 1</name><Polygon><outerBoundaryIs><LinearRing><coordinates>
+        -52.10,-33.10,0 -52.09,-33.10,0 -52.09,-33.09,0 -52.10,-33.09,0 -52.10,-33.10,0
+      </coordinates></LinearRing></outerBoundaryIs></Polygon></Placemark>
+      <Placemark><name><![CDATA[Sede]]></name><Point><coordinates>-52.1,-33.1,0</coordinates></Point></Placemark>
+    </Document></kml>`;
+
+    it('soma os talhões do KML aos já importados, sem apagar talhões nem linhas', async () => {
+      await subir();
+      await service.importarGen4('org-demo', { arquivos: [{ nome: 'gen4.zip', conteudoBase64: zip({ 'MasterData.xml': XML, 'SpatialFiles/limite.gjson': LIMITE, 'SpatialFiles/curva.gjson': CURVA }) }] });
+      const r = await service.importarGen4('org-demo', { arquivos: [{ nome: 'soja.kml', conteudoBase64: b64(strToU8(KML)) }] });
+      expect(ResultadoImportacaoSchema.parse(r).talhoes.map((t) => t.nome)).toEqual(['SOJA FUTURA 1']);
+      expect(r.talhoes[0]!.areaHa).toBeGreaterThan(90);
+      const guardada = await new ImportacoesRepository(banco).buscar('org-demo');
+      expect(guardada?.talhoes.map((t) => t.nome)).toEqual(['TALHAO UM', 'SOJA FUTURA 1']);
+      expect(guardada?.linhas).toHaveLength(1);
+      expect(guardada?.cliente).toBe('FAZENDA TESTE');
+    });
+
+    it('KMZ, e talhão de mesmo nome troca o contorno mantendo o id', async () => {
+      await subir();
+      await service.importarGen4('org-demo', { arquivos: [{ nome: 'gen4.zip', conteudoBase64: zip({ 'MasterData.xml': XML, 'limite.gjson': LIMITE, 'curva.gjson': CURVA }) }] });
+      const antes = await service.importarGen4('org-demo', { arquivos: [{ nome: 'a.kmz', conteudoBase64: zip({ 'doc.kml': KML }) }] });
+      const depois = await service.importarGen4('org-demo', { arquivos: [{ nome: 'b.kml', conteudoBase64: b64(strToU8(KML.replace('-52.09,-33.09,0', '-52.08,-33.08,0'))) }] });
+      expect(depois.talhoes).toHaveLength(1);
+      expect(depois.talhoes[0]!.id).toBe(antes.talhoes[0]!.id);
+      expect(depois.talhoes[0]!.areaHa).not.toBe(antes.talhoes[0]!.areaHa);
+      expect((await new ImportacoesRepository(banco).buscar('org-demo'))?.talhoes).toHaveLength(2);
+    });
+
+    it('KML só com ponto ou linha diz que faltam polígonos', async () => {
+      await subir();
+      await expect(service.importarGen4('org-demo', { arquivos: [{ nome: 'p.kml', conteudoBase64: b64(strToU8('<kml><Placemark><name>A</name><Point><coordinates>-52,-33</coordinates></Point></Placemark></kml>')) }] })).rejects.toMatchObject({ response: { codigo: 'SEM_TALHOES' } });
+    });
+  });
 });

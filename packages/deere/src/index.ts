@@ -3,6 +3,7 @@ export * from './provedor-maquinas';
 export * from './fazenda-demo';
 export * from './fake-provedor';
 export * from './gen4';
+export * from './kml';
 export * from './deere-provedor';
 export * from './deere-cliente';
 export * from './deere-mapeadores';

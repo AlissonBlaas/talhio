@@ -71,7 +71,7 @@ export function PainelSelecao({ selecao, aoFechar, aoVerMaquina, aoPlanejar, aoL
             </View>
           ) : null}
           {selecao.maquina.usoHoje && selecao.maquina.usoHoje.semPosicaoH > 0 ? (
-            <Text style={styles.linhaInfo}>Mais {horasMinutos(selecao.maquina.usoHoje.semPosicaoH)} de motor ligado sem posição lida.</Text>
+            <Text style={styles.linhaInfo}>Mais {horasMinutos(selecao.maquina.usoHoje.semPosicaoH)} de motor ligado sem posição lida{selecao.maquina.usoHoje.semPosicaoH >= 1 ? ': vale conferir com o operador' : ''}.</Text>
           ) : null}
           {selecao.maquina.usoHoje && selecao.maquina.usoHoje.porTalhao.length > 0 ? (
             <Text style={styles.linhaInfo} numberOfLines={2}>
