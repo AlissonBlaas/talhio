@@ -63,7 +63,7 @@ export function OnboardingScreen() {
     <KeyboardAvoidingView style={styles.tela} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={[styles.conteudo, { paddingBottom: Math.max(bottom, 16) + 24 }]} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         <CabecalhoTela
-          titulo={passo === 1 && nome ? `Bem-vindo, ${nome}` : titulo}
+          titulo={passo === 1 && nome ? `Bem-vindo, ${nome}` : 'Primeiros passos'}
           subtitulo={`Passo ${passo} de 4 · ${passo === 1 ? 'obrigatório' : 'opcional'}`}
           progresso={[1, 2, 3, 4].map((n) => n <= passo)}
         />
@@ -128,9 +128,7 @@ export function OnboardingScreen() {
 
           {passo === 4 ? (
             <>
-              <Cartao>
-                <PassoLarguras />
-              </Cartao>
+              {/* A lista de máquinas é comprida: o aviso vem antes dela, para ninguém pular sem ver. */}
               <SePular
                 feito={feitos[4]}
                 textoFeito="Larguras informadas: os hectares usam o implemento de cada máquina."
@@ -140,6 +138,9 @@ export function OnboardingScreen() {
                   comLargura > 0 ? `Faltam ${maquinas.length - comLargura} de ${maquinas.length} máquinas.` : 'Vale informar pelo menos as máquinas que estão trabalhando agora.',
                 ]}
               />
+              <Cartao>
+                <PassoLarguras />
+              </Cartao>
               {pendentes.length > 0 ? <Text style={styles.pendentes}>Ficou para depois: {pendentes.join(' e ')}. Dá para fazer em Configurações, em "Rever os primeiros passos".</Text> : null}
               <Principal rotulo={feitos[4] ? 'Entrar no app' : comLargura > 0 ? 'Entrar no app' : 'Entrar sem informar as larguras'} aoTocar={entrar} />
               <Secundario rotulo="Voltar" aoTocar={() => ir(3)} />
