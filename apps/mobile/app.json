@@ -11,6 +11,9 @@
       "bundleIdentifier": "com.talhio.app",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
+        "NSPhotoLibraryUsageDescription": "O Talhio acessa suas fotos apenas quando você escolhe salvar ou compartilhar um relatório.",
+        "NSPhotoLibraryAddUsageDescription": "O Talhio salva relatórios na sua galeria quando você pede.",
+        "NSLocationWhenInUseUsageDescription": "O Talhio usa sua localização para mostrar onde você está no mapa da fazenda.",
         "NSSpeechRecognitionUsageDescription": "O Talhio transforma sua fala em texto para enviar a pergunta ao assistente.",
         "NSMicrophoneUsageDescription": "O Talhio usa o microfone para você perguntar ao assistente por voz."
       }
