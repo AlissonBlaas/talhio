@@ -7,7 +7,8 @@ import { gerarHash } from '../auth/senha.js';
 import { BANCO } from '../banco/banco.module.js';
 import type { Banco } from '../banco/banco.js';
 import { criarBancoDeTeste } from '../banco/banco-de-teste.js';
-import { usuarios } from '../banco/schema.js';
+import { combustivelImportado, usuarios } from '../banco/schema.js';
+import { ConsumoDeereRepository } from '../integracoes/deere/consumo-deere.repository.js';
 import { PROVEDOR_MAQUINAS } from '../integracoes/deere/deere.tokens.js';
 import { MaquinasService } from '../maquinas/maquinas.service.js';
 import { PainelService } from '../painel/painel.service.js';
@@ -24,8 +25,9 @@ const AGORA = new Date('2026-11-10T15:00:00.000Z');
 const ANA = { orgId: 'org-demo', usuarioId: 'u-ana' };
 const BETO = { orgId: 'org-demo', usuarioId: 'u-beto' };
 
-async function montar(ia: ModeloIa) {
+async function montar(ia: ModeloIa, preparar?: (banco: Banco) => Promise<void>) {
   const banco: Banco = await criarBancoDeTeste();
+  await preparar?.(banco);
   const senhaHash = await gerarHash('qualquer-senha');
   await banco.insert(usuarios).values([
     { id: ANA.usuarioId, orgId: 'org-demo', nome: 'Ana', email: 'ana@teste.com', senhaHash },
@@ -33,7 +35,7 @@ async function montar(ia: ModeloIa) {
   ]);
   const modulo = await Test.createTestingModule({
     providers: [
-      AssistenteService, ConversasRepository, PainelService, MaquinasService, LarguraImplementoRepository, TalhoesService, TalhoesRepository, EscalaRepository, RelatoriosService, PlanosRepository,
+      AssistenteService, ConversasRepository, ConsumoDeereRepository, PainelService, MaquinasService, LarguraImplementoRepository, TalhoesService, TalhoesRepository, EscalaRepository, RelatoriosService, PlanosRepository,
       { provide: BANCO, useValue: banco },
       { provide: PROVEDOR_MAQUINAS, useValue: new FakeProvedor(() => AGORA) },
       { provide: MODELO_IA, useValue: ia },
@@ -69,6 +71,73 @@ describe('ferramenta de relatório', () => {
     expect(resposta.texto).toBe('Em outubro foram 10 ha.');
     expect(achado).toMatchObject({ periodo: 'mes', inicio: '2026-10-01', fim: '2026-10-31' });
     expect(invalido).toMatchObject({ erro: expect.stringContaining('Pedido inválido') });
+  });
+});
+
+describe('ferramentas de outras épocas', () => {
+  it('histórico mensal: soma litros e horas por mês e por máquina no servidor, com o nome da máquina', async () => {
+    let historico: any;
+    let vazio: any;
+    let invalido: unknown;
+    const ia: ModeloIa = {
+      responder: async (instrucoes, _conversa, ferramentas) => {
+        const id = /"id":"([^"]+)"/.exec(instrucoes.slice(instrucoes.indexOf('"maquinas"')))![1]!;
+        historico = await ferramentas?.consultarHistoricoMensal?.({ meses: 3 });
+        vazio = await ferramentas?.consultarHistoricoMensal?.({ meses: 1 });
+        invalido = await ferramentas?.consultarHistoricoMensal?.({ meses: 99 });
+        return `ok ${id}`;
+      },
+    };
+    const fake = new FakeProvedor(() => AGORA);
+    const [primeira] = await fake.listarMaquinas();
+    const linha = (dia: string, litros: number, horasMotor: number, maquinaId = primeira!.id) => ({ orgId: 'org-demo', maquinaId, dia, litros, horasMotor, litrosTrabalhando: litros - 10, litrosOcioso: 10, litrosTransporte: 0, horasTrabalhando: horasMotor - 1, horasOcioso: 1, horasTransporte: 0, fonte: 'api' });
+    await (
+      await montar(ia, async (banco) => {
+        await banco.insert(combustivelImportado).values([linha('2026-08-15', 9999, 10), linha('2026-09-10', 200, 10), linha('2026-09-11', 300, 10), linha('2026-10-02', 440, 20), linha('2026-10-02', 60, 5, 'maquina-vendida')]);
+      })
+    ).responder(ANA, null, 'Compare setembro e outubro', AGORA);
+
+    // 3 meses contando novembro: agosto fica de fora.
+    expect(historico.desde).toBe('2026-09-01');
+    expect(historico.meses.map((m: any) => [m.mes, m.litros, m.horasMotor, m.consumoLPorHora, m.emAndamento])).toEqual([
+      ['2026-09', 500, 20, 25, false],
+      ['2026-10', 500, 25, 20, false],
+    ]);
+    expect(historico.meses[1].porMaquina).toMatchObject([
+      { nome: primeira!.nome, litros: 440, horasMotor: 20, consumoLPorHora: 22, horasOcioso: 1, diasComLeitura: 1 },
+      { nome: 'Máquina que saiu da frota', litros: 60 },
+    ]);
+    // Novembro não tem leitura guardada: o modelo recebe o aviso, não um zero.
+    expect(vazio).toMatchObject({ meses: [], aviso: expect.stringContaining('Não há histórico') });
+    expect(invalido).toMatchObject({ erro: expect.stringContaining('Pedido inválido') });
+  });
+
+  it('relatório só de algumas máquinas e análise de uma máquina, sempre da própria organização', async () => {
+    let soUma: any;
+    let analise: any;
+    let deOutra: unknown;
+    const ia: ModeloIa = {
+      responder: async (instrucoes, _conversa, ferramentas) => {
+        const id = /"id":"([^"]+)"/.exec(instrucoes.slice(instrucoes.indexOf('"maquinas"')))![1]!;
+        soUma = await ferramentas?.consultarRelatorio({ periodo: 'mes', data: '2026-10-15', maquinas: [id] });
+        analise = await ferramentas?.consultarAnaliseDaMaquina?.({ maquina: id, de: '2026-10-01', ate: '2026-10-20' });
+        deOutra = await ferramentas?.consultarAnaliseDaMaquina?.({ maquina: id, de: 'ontem' });
+        return 'ok';
+      },
+    };
+    await (await montar(ia)).responder(ANA, null, 'Como foi o trator em outubro?', AGORA);
+    expect(soUma).toMatchObject({ periodo: 'mes', inicio: '2026-10-01', fim: '2026-10-31' });
+    expect(soUma.soMaquinas).toHaveLength(1);
+    expect(analise).toMatchObject({ de: '2026-10-01', ate: '2026-10-20' });
+    expect(deOutra).toMatchObject({ erro: expect.stringContaining('Pedido inválido') });
+  });
+
+  it('as instruções pedem resposta organizada (frase, tabela, tópicos) e mandam consultar outras épocas', async () => {
+    const { ia, visto } = iaDeTeste();
+    await (await montar(ia)).responder(ANA, null, 'Oi', AGORA);
+    const instrucoes = visto[0]!.instrucoes;
+    for (const trecho of ['consultar_historico_mensal', 'consultar_analise_da_maquina', '**negrito**', 'tabela', '"## "', 'Nunca invente']) expect(instrucoes).toContain(trecho);
+    expect(instrucoes).not.toContain('Sem markdown');
   });
 });
 

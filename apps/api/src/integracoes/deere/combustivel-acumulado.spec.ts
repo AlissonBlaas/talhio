@@ -139,6 +139,19 @@ describe('litros do dia pelo combustível acumulado do motor (ISO 15143-3)', () 
     expect(r.combustivelEstimado).toBeUndefined();
   });
 
+  it('dia antigo, que a Deere não cobre mais e sem caminho guardado: horas e tempo ocioso vêm da mesma leitura dos litros', async () => {
+    const armazem = memoria();
+    (armazem.importados as Map<string, { litros: number; horasMotor: number | null; horasOcioso?: number | null }>).set(`org|7|${dia(-200)}`, { litros: 357.49, horasMotor: 16.09, horasOcioso: 2.97 });
+    const r = await provedorCom(armazem, 63_000, {}, 5000).atividadeNoDia('org', '7', dia(-200));
+    expect(r.combustivelL).toBe(357.5);
+    expect(r.horas).toBe(16.1);
+    expect(r.paradoMin).toBe(178);
+    expect(r.horasMotorLeitura).toBe(16.09);
+    // Hoje não é completado por aqui: as horas e a parada de hoje saem do caminho do dia.
+    armazem.importados.set(`org|7|${dia()}`, { litros: 50, horasMotor: 3 });
+    expect((await provedorCom(armazem, 63_000, {}, 5000).atividadeNoDia('org', '7', dia())).paradoMin).toBe(0);
+  });
+
   it('o consumo importado não depende da lista de máquinas da Deere (que pode demorar mais que o prazo do relatório)', async () => {
     const armazem = memoria();
     armazem.importados.set(`org|7|${dia(-5)}`, { litros: 357.49, horasMotor: 16.2 });
@@ -263,10 +276,10 @@ describe('CombustivelAcumuladoRepository', () => {
       { orgId: 'org-outra-2', maquinaId: '7', dia: '2026-11-06', litros: 1, horasMotor: null },
     ]);
     const repo = new CombustivelAcumuladoRepository(db);
-    expect(await repo.importado('org-demo', '7', '2026-11-06')).toEqual({ litros: 435.4, horasMotor: 16.4 });
+    expect(await repo.importado('org-demo', '7', '2026-11-06')).toEqual({ litros: 435.4, horasMotor: 16.4, horasOcioso: null });
     expect(await repo.importado('org-demo', '7', '2026-11-07')).toBeNull();
     expect(await repo.importado('org-demo', '8', '2026-11-06')).toBeNull();
-    expect(await repo.importado('org-outra-2', '7', '2026-11-06')).toEqual({ litros: 1, horasMotor: null });
+    expect(await repo.importado('org-outra-2', '7', '2026-11-06')).toEqual({ litros: 1, horasMotor: null, horasOcioso: null });
   });
 
   it('a primeira leitura do dia não muda quando chegam leituras novas', async () => {

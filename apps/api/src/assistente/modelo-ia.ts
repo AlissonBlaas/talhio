@@ -20,8 +20,12 @@ export class IaIndisponivel extends Error {
 
 /** O que o modelo pode consultar durante a resposta. Cada ferramenta já vem presa à organização de quem perguntou. */
 export interface Ferramentas {
-  /** Relatório de um dia, de 7 dias ou de um mês (`data` = AAAA-MM-DD). Devolve o relatório ou `{ erro }`. */
+  /** Relatório de um dia, de 7 dias ou de um mês (`data` = AAAA-MM-DD), da fazenda ou só de algumas máquinas. Devolve o relatório ou `{ erro }`. */
   consultarRelatorio(pedido: unknown): Promise<unknown>;
+  /** Combustível e horas de motor por mês e por máquina, dos últimos `meses` meses. Devolve o histórico ou `{ erro }`. */
+  consultarHistoricoMensal?(pedido: unknown): Promise<unknown>;
+  /** Todas as medições do Analisador da Máquina de uma máquina num período de até 30 dias. Devolve a análise ou `{ erro }`. */
+  consultarAnaliseDaMaquina?(pedido: unknown): Promise<unknown>;
 }
 
 export interface ModeloIa {
@@ -34,19 +38,58 @@ export interface ModeloIa {
 const FERRAMENTA_RELATORIO = {
   name: 'consultar_relatorio',
   description:
-    'Busca o relatório calculado pelo sistema de qualquer dia, de 7 dias ou de um mês da fazenda: área, horas, consumo, tempo parado, a máquina que mais parou, o resultado de cada máquina e a série dia a dia, sempre comparado com o período anterior. Use quando a pergunta for sobre outro período que não "hoje" ou "últimos 7 dias" (um dia específico, o mês, mês passado).',
+    'Busca o relatório calculado pelo sistema de qualquer dia, de 7 dias ou de um mês da fazenda (de qualquer época, inclusive meses e anos anteriores): área, horas, consumo, tempo parado, a máquina que mais parou, o resultado de cada máquina e a série dia a dia, sempre comparado com o período anterior. Use quando a pergunta for sobre outro período que não "hoje" ou "últimos 7 dias" (um dia específico, o mês, mês passado). Com `maquinas`, o relatório (e a série dia a dia) conta só essas máquinas.',
   input_schema: {
     type: 'object' as const,
     properties: {
       periodo: { type: 'string', enum: ['dia', 'semana', 'mes'], description: 'dia = um dia; semana = os 7 dias que terminam em `data`; mes = o mês de calendário que contém `data`.' },
       data: { type: 'string', description: 'Dia de referência no formato AAAA-MM-DD. Sem ela vale hoje. Datas futuras valem hoje.' },
+      maquinas: { type: 'array', items: { type: 'string' }, description: 'Opcional: ids das máquinas (campo "id" de cada máquina nos DADOS). Sem ele, a fazenda inteira.' },
     },
     required: ['periodo'],
   },
 };
 
+const FERRAMENTA_HISTORICO = {
+  name: 'consultar_historico_mensal',
+  description:
+    'Busca, de uma vez, o combustível (litros) e as horas de motor de cada mês e de cada máquina, dos últimos meses: total, trabalhando, ocioso e em transporte, com o consumo médio em L/h. São os números do motor (os mesmos do Operations Center). Use para comparar meses, ver tendência, achar o mês ou a máquina que mais gastou, ou responder sobre um período longo. Não traz área (hectares): para área de um mês, use consultar_relatorio.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      meses: { type: 'integer', minimum: 1, maximum: 24, description: 'Quantos meses para trás, contando o mês atual. Padrão: 6.' },
+    },
+    required: [],
+  },
+};
+
+const FERRAMENTA_ANALISE = {
+  name: 'consultar_analise_da_maquina',
+  description:
+    'Busca todas as medições que o Analisador da Máquina da John Deere tem de UMA máquina num período de até 30 dias (de qualquer época): combustível e horas por estado, consumo médio, carga do motor, rotação, velocidade, temperaturas e o que mais a máquina informar. Use para perguntas detalhadas sobre uma máquina (carga do motor, marcha lenta, velocidade média, temperatura).',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      maquina: { type: 'string', description: 'Id da máquina (campo "id" da máquina nos DADOS).' },
+      de: { type: 'string', description: 'Primeiro dia, AAAA-MM-DD.' },
+      ate: { type: 'string', description: 'Último dia, AAAA-MM-DD (no máximo 30 dias depois de `de`). Sem ele vale o mesmo dia de `de`.' },
+    },
+    required: ['maquina', 'de'],
+  },
+};
+
+/** As ferramentas que o servidor oferece nesta resposta e quem atende cada uma. */
+function ferramentasOferecidas(ferramentas: Ferramentas) {
+  const lista: { definicao: typeof FERRAMENTA_RELATORIO | typeof FERRAMENTA_HISTORICO | typeof FERRAMENTA_ANALISE; atender: (pedido: unknown) => Promise<unknown> }[] = [
+    { definicao: FERRAMENTA_RELATORIO, atender: (p) => ferramentas.consultarRelatorio(p) },
+  ];
+  if (ferramentas.consultarHistoricoMensal) lista.push({ definicao: FERRAMENTA_HISTORICO, atender: (p) => ferramentas.consultarHistoricoMensal!(p) });
+  if (ferramentas.consultarAnaliseDaMaquina) lista.push({ definicao: FERRAMENTA_ANALISE, atender: (p) => ferramentas.consultarAnaliseDaMaquina!(p) });
+  return lista;
+}
+
 /** Quantas vezes o modelo pode pedir dados antes de responder. */
-const RODADAS_DE_CONSULTA = 4;
+const RODADAS_DE_CONSULTA = 6;
 
 /** Sem chave configurada: toda pergunta falha com um erro claro. */
 export class IaDesligada implements ModeloIa {
@@ -59,7 +102,7 @@ export class IaDesligada implements ModeloIa {
   }
 }
 
-const LIMITE_DE_SAIDA = 4000;
+const LIMITE_DE_SAIDA = 6000;
 
 /** Claude, pela API da Anthropic. A chave fica só no servidor (apps/api/.env). */
 export class IaAnthropic implements ModeloIa {
@@ -85,6 +128,7 @@ export class IaAnthropic implements ModeloIa {
     try {
       const mensagens: Anthropic.MessageParam[] = conversa.map((m) => ({ role: m.papel === 'usuario' ? ('user' as const) : ('assistant' as const), content: m.texto }));
       let texto = '';
+      const oferecidas = ferramentas ? ferramentasOferecidas(ferramentas) : [];
       const pedir = async (): Promise<Anthropic.Message> => {
         const parametros = {
           model: this.modelo,
@@ -92,7 +136,7 @@ export class IaAnthropic implements ModeloIa {
           max_tokens: LIMITE_DE_SAIDA,
           system: instrucoes,
           messages: mensagens,
-          ...(ferramentas ? { tools: [FERRAMENTA_RELATORIO] } : {}),
+          ...(oferecidas.length ? { tools: oferecidas.map((f) => f.definicao) } : {}),
         };
         if (!aoTrecho) return this.cliente.messages.create(parametros);
         const fluxo = this.cliente.messages.stream(parametros);
@@ -102,6 +146,16 @@ export class IaAnthropic implements ModeloIa {
         });
         return fluxo.finalMessage();
       };
+      // Erro numa consulta vira resposta para o modelo ("não consegui esse dado"), não derruba a conversa.
+      const atender = async (pedido: Anthropic.ToolUseBlock): Promise<unknown> => {
+        const ferramenta = oferecidas.find((f) => f.definicao.name === pedido.name);
+        if (!ferramenta) return { erro: 'Ferramenta desconhecida.' };
+        try {
+          return await ferramenta.atender(pedido.input);
+        } catch (e) {
+          return { erro: `Não foi possível buscar esse dado agora${e instanceof Error && e.message ? `: ${e.message.slice(0, 200)}` : '.'}` };
+        }
+      };
       let resposta = await pedir();
       // O modelo pede um relatório, o servidor busca (já preso à organização) e devolve o resultado.
       for (let rodada = 0; ferramentas && resposta.stop_reason === 'tool_use' && rodada < RODADAS_DE_CONSULTA; rodada++) {
@@ -110,7 +164,7 @@ export class IaAnthropic implements ModeloIa {
           pedidos.map(async (pedido) => ({
             type: 'tool_result' as const,
             tool_use_id: pedido.id,
-            content: JSON.stringify(pedido.name === FERRAMENTA_RELATORIO.name ? await ferramentas.consultarRelatorio(pedido.input) : { erro: 'Ferramenta desconhecida.' }),
+            content: JSON.stringify(await atender(pedido)),
           })),
         );
         mensagens.push({ role: 'assistant', content: resposta.content }, { role: 'user', content: resultados });

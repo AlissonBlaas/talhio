@@ -2,9 +2,11 @@ import { appendFile, mkdir } from 'node:fs/promises';
 import { BadGatewayException, Inject, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { DiaSchema, PeriodoSchema, type Conversa, type PaginaDeConversas, type Mensagem, type Resposta } from '@talhio/shared';
 import { z } from 'zod';
+import { ConsumoDeereRepository, type ConsumoDoMes } from '../integracoes/deere/consumo-deere.repository.js';
 import { MaquinasService } from '../maquinas/maquinas.service.js';
 import { PainelService } from '../painel/painel.service.js';
 import { RelatoriosService } from '../relatorios/relatorios.service.js';
+import { diaLocal } from '../shared/dia.js';
 import { TalhoesService } from '../talhoes/talhoes.service.js';
 import { ConversasRepository, type Dono } from './conversas.repository.js';
 import { CortaSugestoes, montarInstrucoes, separarSugestoes } from './instrucoes.js';
@@ -46,6 +48,7 @@ export class AssistenteService {
     @Inject(MaquinasService) private readonly maquinas: MaquinasService,
     @Inject(TalhoesService) private readonly talhoes: TalhoesService,
     @Inject(RelatoriosService) private readonly relatorios: RelatoriosService,
+    @Inject(ConsumoDeereRepository) private readonly consumo: ConsumoDeereRepository,
   ) {}
 
   /**
@@ -109,13 +112,76 @@ export class AssistenteService {
 
   /** O que o modelo pode buscar sozinho. Sempre da organização de quem perguntou, nunca de outra. */
   private ferramentasDa(orgId: string, agora: Date): Ferramentas {
-    const Pedido = z.object({ periodo: PeriodoSchema, data: DiaSchema.optional() });
+    const Pedido = z.object({ periodo: PeriodoSchema, data: DiaSchema.optional(), maquinas: z.array(z.string().min(1).max(100)).min(1).max(50).optional() });
+    const PedidoDeHistorico = z.object({ meses: z.number().int().min(1).max(24).optional() });
+    const PedidoDeAnalise = z.object({ maquina: z.string().min(1).max(100), de: DiaSchema, ate: DiaSchema.optional() });
     return {
       consultarRelatorio: async (pedido) => {
         const lido = Pedido.safeParse(pedido);
-        if (!lido.success) return { erro: 'Pedido inválido: informe periodo (dia, semana ou mes) e, se quiser, data no formato AAAA-MM-DD.' };
-        return this.relatorios.montar(orgId, lido.data.periodo, lido.data.data, agora);
+        if (!lido.success) return { erro: 'Pedido inválido: informe periodo (dia, semana ou mes) e, se quiser, data no formato AAAA-MM-DD e maquinas (lista de ids).' };
+        return this.relatorios.montar(orgId, lido.data.periodo, lido.data.data, agora, lido.data.maquinas);
       },
+      consultarHistoricoMensal: async (pedido) => {
+        const lido = PedidoDeHistorico.safeParse(pedido ?? {});
+        if (!lido.success) return { erro: 'Pedido inválido: informe meses como um número inteiro de 1 a 24.' };
+        return this.historicoMensal(orgId, lido.data.meses ?? 6, agora);
+      },
+      consultarAnaliseDaMaquina: async (pedido) => {
+        const lido = PedidoDeAnalise.safeParse(pedido);
+        if (!lido.success) return { erro: 'Pedido inválido: informe maquina (id) e de (AAAA-MM-DD); ate é opcional.' };
+        const analise = await this.maquinas.analise(orgId, lido.data.maquina, lido.data.de, lido.data.ate ?? lido.data.de, agora);
+        if (analise.grupos.length === 0) return { ...analise, aviso: 'A máquina não tem medições nesse período (sem telemetria ou não reportou).' };
+        // Os ids das medições não ajudam a responder e só gastam contexto.
+        return { ...analise, grupos: analise.grupos.map((g) => ({ nome: g.nome, itens: g.itens.map(({ id: _id, ...item }) => item) })) };
+      },
+    };
+  }
+
+  /**
+   * Combustível e horas de motor por mês, da fazenda e de cada máquina, dos últimos `meses` meses (contando o atual).
+   * Sai dos dias guardados do Analisador da Máquina; toda soma é feita aqui, o modelo só lê.
+   */
+  async historicoMensal(orgId: string, meses: number, agora = new Date()) {
+    const hoje = diaLocal(agora);
+    const inicio = new Date(`${hoje.slice(0, 7)}-01T12:00:00Z`);
+    inicio.setUTCMonth(inicio.getUTCMonth() - (meses - 1));
+    const desde = inicio.toISOString().slice(0, 10);
+    const [linhas, maquinas] = await Promise.all([this.consumo.porMes(orgId, desde), this.maquinas.listar(orgId, agora)]);
+    if (linhas.length === 0) return { desde, ate: hoje, meses: [], aviso: 'Não há histórico mensal de combustível guardado para este período. Para área e horas de um mês, use consultar_relatorio com periodo "mes".' };
+
+    const nomeDe = new Map(maquinas.map((m) => [m.id, m.nome]));
+    const casas = (valor: number, n = 1) => Math.round(valor * 10 ** n) / 10 ** n;
+    const resumir = (t: Omit<ConsumoDoMes, 'mes' | 'maquinaId' | 'dias'>) => ({
+      litros: casas(t.litros),
+      horasMotor: casas(t.horasMotor),
+      // Litros e horas vêm da mesma leitura, então o L/h do mês é a divisão direta.
+      consumoLPorHora: t.horasMotor > 0 ? casas(t.litros / t.horasMotor) : null,
+      litrosTrabalhando: casas(t.litrosTrabalhando),
+      litrosOcioso: casas(t.litrosOcioso),
+      litrosTransporte: casas(t.litrosTransporte),
+      horasTrabalhando: casas(t.horasTrabalhando),
+      horasOcioso: casas(t.horasOcioso),
+      horasTransporte: casas(t.horasTransporte),
+    });
+    const porMes = new Map<string, ConsumoDoMes[]>();
+    for (const linha of linhas) porMes.set(linha.mes, [...(porMes.get(linha.mes) ?? []), linha]);
+    const campos = ['litros', 'horasMotor', 'litrosTrabalhando', 'litrosOcioso', 'litrosTransporte', 'horasTrabalhando', 'horasOcioso', 'horasTransporte'] as const;
+    return {
+      desde,
+      ate: hoje,
+      fonte: 'Analisador da Máquina da John Deere (número do motor), somado por mês',
+      meses: [...porMes].map(([mes, doMes]) => {
+        const total = Object.fromEntries(campos.map((c) => [c, doMes.reduce((soma, l) => soma + l[c], 0)])) as Record<(typeof campos)[number], number>;
+        return {
+          mes,
+          // O mês atual ainda está em andamento: comparar com um mês fechado exige dizer isso.
+          emAndamento: mes === hoje.slice(0, 7),
+          ...resumir(total),
+          porMaquina: doMes
+            .map((l) => ({ maquinaId: l.maquinaId, nome: nomeDe.get(l.maquinaId) ?? 'Máquina que saiu da frota', diasComLeitura: l.dias, ...resumir(l) }))
+            .sort((a, b) => b.litros - a.litros),
+        };
+      }),
     };
   }
 

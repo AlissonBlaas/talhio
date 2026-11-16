@@ -100,7 +100,7 @@ export interface ArmazemDeCombustivel {
   /** Horas de motor acumuladas (ISO) da última leitura do dia: o L/h usa as horas da MESMA leitura do combustível. */
   buscarHoras?(orgId: string, serie: string, dia: string): Promise<number | null>;
   /** Consumo do dia importado do Operations Center (litros e horas de motor do mesmo dia), se houver. */
-  importado?(orgId: string, maquinaId: string, dia: string): Promise<{ litros: number; horasMotor: number | null } | null>;
+  importado?(orgId: string, maquinaId: string, dia: string): Promise<{ litros: number; horasMotor: number | null; horasOcioso?: number | null } | null>;
 }
 
 /** Uma leitura da frota (ISO 15143-3): combustível e horas de motor acumulados, lidos juntos. */
@@ -693,9 +693,11 @@ export class DeereProvedor implements ProvedorMaquinas {
     ]);
     const atividade: AtividadeDiariaExterna = { ...estimado, horas: Math.max(estimado.horas, ligado) };
     // Dia passado: o fechamento guardado (lido do caminho daquele dia) completa o que a Deere não informa.
+    let temFechamento = false;
     if (dia !== hojeNaFazenda()) {
       const fechado = await this.config.diario?.buscar(orgId, maquinaId, dia).catch(() => null);
       if (fechado) {
+        temFechamento = true;
         if (atividade.areaHa === 0) {
           atividade.areaHa = fechado.areaHa;
           atividade.areaForaDosTalhoesHa = fechado.areaForaHa;
@@ -710,6 +712,13 @@ export class DeereProvedor implements ProvedorMaquinas {
     if (atividade.combustivelL === 0) {
       const lido = await ate(this.litrosDoDia(orgId, maquinaId, dia), 300, null);
       atividade.combustivelL = lido?.litros ?? 0;
+      // Dia antigo (mês passado, ano passado): a Deere só informa as horas de chave ligada dos últimos 62 dias e o
+      // caminho só existe desde que o Talhio acompanha a fazenda. As horas de motor e o tempo ocioso do Analisador da
+      // Máquina (a mesma leitura dos litros) completam o que faltar, para o relatório de outros meses não vir zerado.
+      if (dia !== hojeNaFazenda() && lido && !lido.estimado && (lido.horasMotor ?? 0) > 0) {
+        if (atividade.horas === 0) atividade.horas = Math.round((lido.horasMotor ?? 0) * 10) / 10;
+        if (!temFechamento && atividade.paradoMin === 0 && (lido.ociosoH ?? 0) > 0) atividade.paradoMin = Math.round((lido.ociosoH ?? 0) * 60);
+      }
       if (lido?.estimado && atividade.combustivelL > 0) atividade.combustivelEstimado = true;
       if (lido?.desde && atividade.combustivelL > 0) atividade.combustivelDesde = lido.desde;
       // O litro e as horas de motor saíram das mesmas duas leituras da ISO: o L/h só usa esse par.
@@ -1071,12 +1080,15 @@ export class DeereProvedor implements ProvedorMaquinas {
    * A estimativa pela queda do tanque só entra se `combustivelPeloTanque` estiver ligado, e sai marcada como `estimado`
    * (o relatório avisa que aquele número não é o do motor).
    */
-  private async litrosDoDia(orgId: string, maquinaId: string, dia: string): Promise<{ litros: number; estimado: boolean; desde?: string; horasMotor?: number } | null> {
+  private async litrosDoDia(orgId: string, maquinaId: string, dia: string): Promise<{ litros: number; estimado: boolean; desde?: string; horasMotor?: number; ociosoH?: number } | null> {
     const armazem = this.config.combustivel;
     // Consumo importado do Operations Center: é o número do monitor, com as horas do mesmo dia. Vem antes da ISO e antes
     // de qualquer chamada à John Deere: só precisa do banco, e o relatório só espera 300 ms por este número.
     const importado = await armazem?.importado?.(orgId, maquinaId, dia).catch(() => null);
-    if (importado) return { litros: Math.round(importado.litros * 10) / 10, estimado: false, ...(importado.horasMotor !== null ? { horasMotor: Math.round(importado.horasMotor * 100) / 100 } : {}) };
+    if (importado) {
+      const ociosoH = importado.horasOcioso;
+      return { litros: Math.round(importado.litros * 10) / 10, estimado: false, ...(importado.horasMotor !== null ? { horasMotor: Math.round(importado.horasMotor * 100) / 100 } : {}), ...(typeof ociosoH === 'number' ? { ociosoH } : {}) };
+    }
     const maquina = (await this.listarMaquinas(orgId).catch(() => [] as MaquinaExterna[])).find((m) => m.id === maquinaId);
     const hoje = dia === hojeNaFazenda();
     const serie = maquina?.numeroSerie?.trim().toUpperCase();

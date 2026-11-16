@@ -50,16 +50,16 @@ export class CombustivelAcumuladoRepository implements ArmazemDeCombustivel {
   }
 
   /** Consumo importado do Operations Center. Uma consulta por fazenda, 60 s na memória (o relatório lê dia a dia). */
-  private readonly importados = new Map<string, { ate: number; dados: Promise<Map<string, { litros: number; horasMotor: number | null }>> }>();
+  private readonly importados = new Map<string, { ate: number; dados: Promise<Map<string, { litros: number; horasMotor: number | null; horasOcioso: number | null }>> }>();
 
-  async importado(orgId: string, maquinaId: string, dia: string): Promise<{ litros: number; horasMotor: number | null } | null> {
+  async importado(orgId: string, maquinaId: string, dia: string): Promise<{ litros: number; horasMotor: number | null; horasOcioso: number | null } | null> {
     let guardado = this.importados.get(orgId);
     if (!guardado || guardado.ate <= Date.now()) {
       const dados = this.db
-        .select({ maquinaId: combustivelImportado.maquinaId, dia: combustivelImportado.dia, litros: combustivelImportado.litros, horasMotor: combustivelImportado.horasMotor })
+        .select({ maquinaId: combustivelImportado.maquinaId, dia: combustivelImportado.dia, litros: combustivelImportado.litros, horasMotor: combustivelImportado.horasMotor, horasOcioso: combustivelImportado.horasOcioso })
         .from(combustivelImportado)
         .where(eq(combustivelImportado.orgId, orgId))
-        .then((linhas) => new Map(linhas.map((l) => [`${l.maquinaId}|${l.dia}`, { litros: l.litros, horasMotor: l.horasMotor }])));
+        .then((linhas) => new Map(linhas.map((l) => [`${l.maquinaId}|${l.dia}`, { litros: l.litros, horasMotor: l.horasMotor, horasOcioso: l.horasOcioso }])));
       guardado = { ate: Date.now() + 60_000, dados };
       this.importados.set(orgId, guardado);
     }

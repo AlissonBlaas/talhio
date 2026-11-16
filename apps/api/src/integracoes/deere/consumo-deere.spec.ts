@@ -4,7 +4,7 @@ import { combustivelImportado, organizacoes } from '../../banco/schema.js';
 import type { Config } from '../../core/config.js';
 import { CombustivelAcumuladoRepository } from './combustivel-acumulado.repository.js';
 import { ConsumoDeereRepository } from './consumo-deere.repository.js';
-import { ConsumoDeereService } from './consumo-deere.service.js';
+import { ConsumoDeereService, PASSADO_QUE_FALTA } from './consumo-deere.service.js';
 
 const ID_COMBUSTIVEL = '254FA2D2-D79D-94C5-9B66-6A602648C98C';
 const ID_UTILIZACAO = '21FDC863-B93D-9ED2-29C7-97E483877741';
@@ -145,11 +145,35 @@ describe('ConsumoDeereRepository', () => {
     expect(await repo.guardar('org-demo', '7', [])).toBe(0);
 
     const leitura = new CombustivelAcumuladoRepository(db);
-    expect(await leitura.importado('org-demo', '7', '2026-11-12')).toEqual({ litros: 357.49, horasMotor: 16 });
-    expect(await leitura.importado('org-demo', '7', '2026-11-13')).toEqual({ litros: 31.8, horasMotor: 16 });
-    expect(await leitura.importado('org-b', '7', '2026-11-12')).toEqual({ litros: 1, horasMotor: 16 });
+    expect(await leitura.importado('org-demo', '7', '2026-11-12')).toEqual({ litros: 357.49, horasMotor: 16, horasOcioso: 3 });
+    expect(await leitura.importado('org-demo', '7', '2026-11-13')).toEqual({ litros: 31.8, horasMotor: 16, horasOcioso: 3 });
+    expect(await leitura.importado('org-b', '7', '2026-11-12')).toEqual({ litros: 1, horasMotor: 16, horasOcioso: 3 });
     const linha = (await db.select().from(combustivelImportado)).find((l) => l.orgId === 'org-demo' && l.dia === '2026-11-12')!;
     expect(linha).toMatchObject({ fonte: 'api', litrosTrabalhando: 347.49, litrosOcioso: 10 });
+  });
+
+  it('soma por mês e por máquina, só da fazenda pedida e a partir do dia pedido, e diz o dia mais antigo de cada máquina', async () => {
+    const db = await criarBancoDeTeste();
+    await db.insert(organizacoes).values({ id: 'org-b', nome: 'B' });
+    const repo = new ConsumoDeereRepository(db);
+    await repo.guardar('org-demo', '7', [dia('2026-09-30', 999), dia('2026-10-03', 100), dia('2026-10-20', 250), dia('2026-11-12', 357.49)]);
+    await repo.guardar('org-demo', '8', [dia('2026-10-05', 40)]);
+    await repo.guardar('org-b', '7', [dia('2026-10-05', 5000)]);
+
+    const meses = await repo.porMes('org-demo', '2026-10-01');
+    expect(meses.map((m) => [m.mes, m.maquinaId, m.dias, m.litros])).toEqual([
+      ['2026-10', '7', 2, 350],
+      ['2026-10', '8', 1, 40],
+      ['2026-11', '7', 1, 357.49],
+    ]);
+    expect(meses[0]).toMatchObject({ horasMotor: 32, horasTrabalhando: 26, horasOcioso: 6, litrosOcioso: 20, litrosTrabalhando: 330 });
+    expect(await repo.porMes('org-demo', '2027-01-01')).toEqual([]);
+
+    expect([...(await repo.maisAntigoPorMaquina('org-demo'))]).toEqual([
+      ['7', '2026-09-30'],
+      ['8', '2026-10-05'],
+    ]);
+    expect((await repo.maisAntigoPorMaquina('org-vazia')).size).toBe(0);
   });
 });
 
@@ -157,7 +181,7 @@ describe('ConsumoDeereService', () => {
   const config = { deereProvedor: 'deere', deereMedicoes: true, medicoesPreencherDesde: null } as unknown as Config;
   const agora = new Date('2026-11-13T15:00:00Z'); // 12:00 em Brasília
 
-  function montar() {
+  function montar(jaGuardado: Record<string, string> = {}, falhaAntesDe?: string) {
     const pedidos: { maquina: string; ini: string; fim: string }[] = [];
     const gravados: { maquina: string; dias: number }[] = [];
     const provedor = {
@@ -168,10 +192,14 @@ describe('ConsumoDeereService', () => {
       consumoDiario: async (_o: string, maquina: string, ini: string, fim: string) => {
         pedidos.push({ maquina, ini, fim });
         if (maquina === '2') throw new Error('A John Deere respondeu 500.');
+        if (falhaAntesDe && fim < falhaAntesDe) throw new Error('A John Deere respondeu 400.');
         return [{ dia: fim, litros: 1, litrosTrabalhando: 1, litrosOcioso: 0, litrosTransporte: 0, horasMotor: 1, horasTrabalhando: 1, horasOcioso: 0, horasTransporte: 0 }] as ConsumoDoDia[];
       },
     } as unknown as ProvedorMaquinas;
-    const repo = { guardar: async (_o: string, maquina: string, dias: ConsumoDoDia[]) => (gravados.push({ maquina, dias: dias.length }), dias.length) } as unknown as ConsumoDeereRepository;
+    const repo = {
+      guardar: async (_o: string, maquina: string, dias: ConsumoDoDia[]) => (gravados.push({ maquina, dias: dias.length }), dias.length),
+      maisAntigoPorMaquina: async () => new Map(Object.entries(jaGuardado)),
+    } as unknown as ConsumoDeereRepository;
     const fazendas = { fazendasProntas: async () => ['org-a'] } as never;
     return { service: new ConsumoDeereService(config, provedor, fazendas, repo), pedidos, gravados };
   }
@@ -196,6 +224,31 @@ describe('ConsumoDeereService', () => {
     expect(da1[3]).toEqual({ maquina: '1', ini: '2026-11-11', fim: '2026-11-13' });
     for (const p of da1) expect((Date.parse(p.fim) - Date.parse(p.ini)) / 86_400_000).toBeLessThanOrEqual(29);
   });
+
+  it('sem data configurada, busca sozinho os últimos 12 meses, só das máquinas que ainda não têm esse histórico', async () => {
+    // A máquina 1 só tem dias recentes guardados: busca desde o dia 1 do mês de 12 meses atrás.
+    const semHistorico = montar({ '1': '2026-11-05' });
+    await semHistorico.service.rodar(PASSADO_QUE_FALTA, agora);
+    const da1 = semHistorico.pedidos.filter((p) => p.maquina === '1');
+    expect(da1[0]).toEqual({ maquina: '1', ini: '2025-11-01', fim: '2025-11-30' });
+    expect(da1.at(-1)).toEqual({ maquina: '1', ini: '2026-11-11', fim: '2026-11-13' });
+    for (let i = 1; i < da1.length; i++) expect(Date.parse(da1[i]!.ini) - Date.parse(da1[i - 1]!.fim)).toBe(86_400_000);
+
+    // Já tem o histórico (dia mais antigo perto do alvo): só relê os últimos dias.
+    const comHistorico = montar({ '1': '2025-11-20' });
+    await comHistorico.service.rodar(PASSADO_QUE_FALTA, agora);
+    expect(comHistorico.pedidos.filter((p) => p.maquina === '1')).toEqual([{ maquina: '1', ini: '2026-11-11', fim: '2026-11-13' }]);
+  }, 60_000);
+
+  it('no modo automático, pedaço antigo que a Deere recusa não tira os dias recentes', async () => {
+    const { service, pedidos, gravados } = montar({}, '2026-06-01');
+    await service.rodar(PASSADO_QUE_FALTA, agora);
+    const da1 = pedidos.filter((p) => p.maquina === '1');
+    expect(da1.at(-1)).toEqual({ maquina: '1', ini: '2026-11-11', fim: '2026-11-13' });
+    // Os pedaços que responderam foram gravados, inclusive a janela recente.
+    expect(gravados.length).toBe(da1.filter((p) => p.fim >= '2026-06-01').length);
+    expect(gravados.length).toBeGreaterThan(1);
+  }, 60_000);
 
   it('não roda duas rodadas ao mesmo tempo', async () => {
     const { service, pedidos } = montar();

@@ -62,6 +62,6 @@ const logDaDeere = new Logger('Deere');
             }),
     },
   ],
-  exports: [PROVEDOR_MAQUINAS, ConexaoDeereService, SincronizacaoDeereService, LarguraImplementoRepository, AtividadeDeereRepository],
+  exports: [PROVEDOR_MAQUINAS, ConexaoDeereService, SincronizacaoDeereService, LarguraImplementoRepository, AtividadeDeereRepository, ConsumoDeereRepository],
 })
 export class DeereModule {}

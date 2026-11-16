@@ -14,12 +14,22 @@ const PAUSA_ENTRE_MAQUINAS_MS = 500;
 /** Janela de cada rodada: ontem, anteontem e hoje (hoje ainda acumula). */
 const DIAS_DA_RODADA = 3;
 const DIA_MS = 86_400_000;
+/** Sem `MEDICOES_PREENCHER_DESDE`, a primeira rodada busca sozinha o passado que falta, até este tanto de meses atrás. */
+const MESES_DE_HISTORICO = 12;
+/** Máquina cujo dia mais antigo guardado já está a até este tanto do alvo não é buscada de novo. */
+const FOLGA_DO_HISTORICO_DIAS = 45;
+/** Pausa entre os pedaços do passado: são muitas chamadas seguidas, e a Deere devolve 429 se vierem juntas. */
+const PAUSA_NO_PASSADO_MS = 1000;
+/** Marca "preencha o passado que faltar": cada máquina busca só se ainda não tem o histórico guardado. */
+export const PASSADO_QUE_FALTA = 'auto';
 
 /**
  * Mantém no banco o consumo de combustível e as horas de motor por máquina e dia, lidos da API Machine Measurements
  * da John Deere (o mesmo número do Analisador da Máquina). Roda a cada hora e relê os últimos dias, porque a máquina
- * reporta em blocos e o dia só fecha depois. Com `MEDICOES_PREENCHER_DESDE`, na subida preenche também o passado, em
- * pedaços de 30 dias. Nunca derruba a API: erro de uma máquina é registrado e a rodada segue.
+ * reporta em blocos e o dia só fecha depois. Na subida preenche também o passado, em pedaços de 30 dias: desde
+ * `MEDICOES_PREENCHER_DESDE`, ou, sem ela, os últimos 12 meses das máquinas que ainda não têm esse histórico guardado
+ * (é o que deixa o relatório e o assistente responderem sobre outros meses). Nunca derruba a API: erro de uma máquina
+ * é registrado e a rodada segue.
  */
 @Injectable()
 export class ConsumoDeereService implements OnApplicationBootstrap, OnApplicationShutdown {
@@ -39,7 +49,7 @@ export class ConsumoDeereService implements OnApplicationBootstrap, OnApplicatio
   onApplicationBootstrap(): void {
     if (this.config.deereProvedor !== 'deere' || !this.config.deereMedicoes || !this.provedor.consumoDiario) return;
     this.inicio = setTimeout(() => {
-      void this.rodar(this.config.medicoesPreencherDesde);
+      void this.rodar(this.config.medicoesPreencherDesde ?? PASSADO_QUE_FALTA);
       this.relogio = setInterval(() => void this.rodar(null), INTERVALO_MS);
       this.relogio.unref();
     }, ATRASO_INICIAL_MS);
@@ -51,7 +61,10 @@ export class ConsumoDeereService implements OnApplicationBootstrap, OnApplicatio
     if (this.relogio) clearInterval(this.relogio);
   }
 
-  /** Uma rodada de todas as fazendas. `preencherDesde`: também busca o passado a partir desse dia. */
+  /**
+   * Uma rodada de todas as fazendas. `preencherDesde`: também busca o passado a partir desse dia; com
+   * `PASSADO_QUE_FALTA`, a partir de 12 meses atrás, só nas máquinas que ainda não têm esse histórico.
+   */
   async rodar(preencherDesde: string | null, agora: Date = new Date()): Promise<void> {
     if (this.rodando) return;
     this.rodando = true;
@@ -67,6 +80,17 @@ export class ConsumoDeereService implements OnApplicationBootstrap, OnApplicatio
   private async fazenda(orgId: string, preencherDesde: string | null, agora: Date): Promise<void> {
     const hoje = diaLocal(agora);
     const recente = this.diaDeslocado(hoje, -(DIAS_DA_RODADA - 1));
+    // No modo automático o alvo é o dia 1 do mês de 12 meses atrás; quem já tem o histórico guardado fica de fora.
+    const automatico = preencherDesde === PASSADO_QUE_FALTA;
+    const alvo = automatico ? this.inicioDoHistorico(hoje) : preencherDesde;
+    const jaGuardado = automatico ? await this.repo.maisAntigoPorMaquina(orgId).catch(() => new Map<string, string>()) : new Map<string, string>();
+    const passadoDe = (maquinaId: string): string | null => {
+      if (!alvo) return null;
+      const antigo = jaGuardado.get(maquinaId);
+      return antigo && antigo <= this.diaDeslocado(alvo, FOLGA_DO_HISTORICO_DIAS) ? null : alvo;
+    };
+    let comPassado = 0;
+    let falhasNoPassado = 0;
     let maquinas;
     try {
       maquinas = await this.provedor.listarMaquinas(orgId);
@@ -80,8 +104,10 @@ export class ConsumoDeereService implements OnApplicationBootstrap, OnApplicatio
       try {
         // Passado em pedaços de 30 dias, do mais antigo para o mais novo, e por último a janela recente.
         const janelas: [string, string][] = [];
-        if (preencherDesde && preencherDesde < recente) {
-          for (let ini = preencherDesde; ini < recente; ) {
+        const desde = passadoDe(maquina.id);
+        if (desde && desde < recente) {
+          comPassado++;
+          for (let ini = desde; ini < recente; ) {
             const fimDaJanela = this.diaDeslocado(ini, 29);
             const fim = fimDaJanela < this.diaDeslocado(recente, -1) ? fimDaJanela : this.diaDeslocado(recente, -1);
             janelas.push([ini, fim]);
@@ -89,10 +115,18 @@ export class ConsumoDeereService implements OnApplicationBootstrap, OnApplicatio
           }
         }
         janelas.push([recente, hoje]);
-        for (const [ini, fim] of janelas) {
-          const dias = (await this.provedor.consumoDiario?.(orgId, maquina.id, ini, fim)) ?? [];
-          gravados += await this.repo.guardar(orgId, maquina.id, dias);
-          await esperar(PAUSA_ENTRE_MAQUINAS_MS);
+        for (const [i, [ini, fim]] of janelas.entries()) {
+          const ehPassado = i < janelas.length - 1;
+          try {
+            const dias = (await this.provedor.consumoDiario?.(orgId, maquina.id, ini, fim)) ?? [];
+            gravados += await this.repo.guardar(orgId, maquina.id, dias);
+          } catch (e) {
+            // Um pedaço do passado que a Deere recusa (antes de a máquina existir, fora do que ela guarda) não pode
+            // tirar os dias recentes: no modo automático segue para o próximo pedaço.
+            if (!automatico || !ehPassado) throw e;
+            falhasNoPassado++;
+          }
+          await esperar(janelas.length > 1 ? PAUSA_NO_PASSADO_MS : PAUSA_ENTRE_MAQUINAS_MS);
         }
       } catch (e) {
         falhas++;
@@ -105,7 +139,14 @@ export class ConsumoDeereService implements OnApplicationBootstrap, OnApplicatio
         }
       }
     }
-    this.log.log(`Fazenda ${orgId}: consumo diário de ${maquinas.length} máquina(s): ${gravados} dia(s) gravados, ${falhas} falha(s)${preencherDesde ? ` (passado desde ${preencherDesde})` : ''}`);
+    this.log.log(`Fazenda ${orgId}: consumo diário de ${maquinas.length} máquina(s): ${gravados} dia(s) gravados, ${falhas} falha(s)${alvo && comPassado > 0 ? ` (passado desde ${alvo} em ${comPassado} máquina(s)${falhasNoPassado ? `, ${falhasNoPassado} pedaço(s) sem resposta` : ''})` : ''}`);
+  }
+
+  /** Dia 1 do mês de `MESES_DE_HISTORICO` meses atrás. */
+  private inicioDoHistorico(hoje: string): string {
+    const d = new Date(`${hoje.slice(0, 7)}-01T12:00:00Z`);
+    d.setUTCMonth(d.getUTCMonth() - MESES_DE_HISTORICO);
+    return d.toISOString().slice(0, 10);
   }
 
   private diaDeslocado(dia: string, dias: number): string {

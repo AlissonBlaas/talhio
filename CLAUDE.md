@@ -184,6 +184,21 @@ Backend (`apps/api/src`)
 - Relatório só de algumas máquinas (12/11, pedido do granjeiro): `?maquinas=id1,id2` em `GET /v1/relatorios/:periodo`, no `/pdf` e no `/envio` (`FiltroDeMaquinasSchema`); `RelatoriosService.montar(..., maquinaIds)` refaz totais, comparação, gráficos e resumo só com elas; `Relatorio.soMaquinas` (nulo = fazenda inteira) aparece no cabeçalho do PDF e nos textos ("Só: ..."); nenhuma máquina encontrada dá 404 `MAQUINA_NAO_ENCONTRADA`. No app, `SeletorMaquinas` na tela Relatórios: UMA linha ("Máquinas · Todas") que abre uma folha com lista rolável, busca (8+ máquinas), ativas primeiro (trabalhando, motor ligado ou com horas hoje) com ponto verde, atalho "Marcar as ativas hoje" e botão "Ver relatório"; nada de fileira de chips (o Alisson achou horroroso com muitas máquinas). Aplicar uma escolha de máquinas SEMPRE refaz o relatório: `refazerPara(ids)` do `useRelatorio` (`resetQueries` na chave nova) + esqueleto (`RelatorioEsqueleto`, com `Pulsar` de `animacoes`) + blocos remontados; trocar só de dia ou período continua mostrando o anterior esmaecido; vale para a tela, o PDF e o envio ao grupo. O relatório do Início segue com todas.
 - A IA lê os relatórios pela ferramenta `consultar_relatorio` (`periodo`, `data?`), ligada à
   organização em `ferramentasDa(orgId)`; o retrato da fazenda traz só hoje e os últimos 7 dias.
+- IA e relatórios de outras épocas (15/11, pedido do Alisson): três ferramentas em `ferramentasDa(orgId)`, definidas em
+  `modelo-ia.ts` (`ferramentasOferecidas`; erro numa consulta volta ao modelo como `{ erro }`, não derruba a resposta):
+  `consultar_relatorio` (`periodo`, `data?`, `maquinas?` = ids), `consultar_historico_mensal` (`meses` 1 a 24; litros e
+  horas de motor por mês e por máquina, somados em `ConsumoDeereRepository.porMes` a partir de `combustivel_importado`;
+  `AssistenteService.historicoMensal`) e `consultar_analise_da_maquina` (`maquina`, `de`, `ate?`, até 30 dias;
+  `MaquinasService.analise`). Passado: `ConsumoDeereService` na primeira rodada busca sozinho os últimos 12 meses do
+  Machine Measurements das máquinas que ainda não têm esse histórico (`PASSADO_QUE_FALTA`; `MEDICOES_PREENCHER_DESDE`
+  continua valendo se definida); pedaço antigo recusado pela Deere não tira os dias recentes. Em `atividadeNoDia`, dia
+  passado sem horas da Deere (ela só cobre 62 dias) nem caminho guardado usa as horas de motor e o tempo ocioso da
+  mesma leitura dos litros, para o relatório de meses antigos não vir zerado. Área de dias anteriores ao Talhio
+  acompanhar a fazenda continua sem fonte (só Field Operations).
+- Resposta da IA organizada (15/11): as instruções mandam começar pela frase com o número em **negrito** e, quando há
+  várias partes, tabela (até 4 colunas), título `## ` e tópicos `- `; só essa marcação é permitida. No app,
+  `features/assistente/formatar.ts` (`lerBlocos`, puro, aguenta resposta pela metade) e `components/TextoFormatado.tsx`
+  desenham; o balão com tabela ocupa a largura da conversa. Fala do usuário continua texto simples.
 - Início do app: depois do mapa/ações, vem o relatório de hoje em papel (3 números, barras por
   máquina, resumo, "Enviar no WhatsApp" e "Ver semana"), "Pergunte à IA" (campo em pílula com
   microfone que abre o assistente) e "Escala de hoje" com "Completar". Layout "Rolando" do desenho.
