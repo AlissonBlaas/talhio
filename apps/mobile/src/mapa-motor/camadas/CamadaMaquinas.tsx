@@ -44,7 +44,8 @@ const Interna = memo(function CamadaMaquinasInterna({ geo, selecionadaId = null,
   const ativa: Igual = ['==', ['get', 'id'], selecionadaId ?? ''];
   const semSinal: Igual = ['==', STATUS, 'sem-sinal'];
   // Com as sem sinal escondidas, só some quem está sem sinal E não é a selecionada.
-  const visivel: FilterSpecification = esconderSemSinal ? ['any', ['!', semSinal], ativa] : true;
+  // Sempre uma expressão: o MapLibre nativo recusa `true` solto como filtro.
+  const visivel: FilterSpecification = esconderSemSinal ? ['any', ['!', semSinal], ativa] : ['has', 'status'];
   // As máquinas deslizam até a posição nova, em vez de pular a cada atualização.
   const emMovimento = useDeslize(geo);
   return (

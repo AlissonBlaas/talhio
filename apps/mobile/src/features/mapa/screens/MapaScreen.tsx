@@ -91,7 +91,7 @@ export function MapaScreen() {
             <View style={[styles.bolinha, styles.bolinhaTrabalhando]} />
             <Text style={[styles.estadoTexto, trabalhando.length > 0 && styles.estadoTextoForte]}>{trabalhando.length} trabalhando</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel={`${paradas.length} paradas com sinal. Mostrar no mapa`} disabled={paradas.length === 0} onPress={() => mostrar(paradas)} style={styles.estado}>
+          <Pressable accessibilityRole="button" accessibilityLabel={`${paradas.length} ${paradas.length === 1 ? "parada" : "paradas"} com sinal. Mostrar no mapa`} disabled={paradas.length === 0} onPress={() => mostrar(paradas)} style={styles.estado}>
             <View style={[styles.bolinha, styles.bolinhaParada]} />
             <Text style={styles.estadoTexto}>{paradas.length} {paradas.length === 1 ? 'parada' : 'paradas'}</Text>
           </Pressable>
