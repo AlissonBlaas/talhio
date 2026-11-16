@@ -209,15 +209,23 @@ Backend (`apps/api/src`)
   detalhe do motor por estado (`motorPorEstado`, nulo sem leitura) e o `total` do período somado no servidor. As
   instruções mandam consultar ANTES de escrever, proíbem número que não veio dos DADOS ou de consulta da própria
   resposta (resposta anterior da conversa não é fonte; célula sem dado vira "—") e reduzem o "Corrigindo:" a uma frase.
-- Conferência dos números da IA (16/11, o Alisson: "ela nunca pode inventar NENHUM dado"): `assistente/conferencia.ts`.
-  `numerosSemFonte(resposta, fontes)` confere cada número da resposta contra o retrato, o resultado das consultas
-  daquela resposta e as perguntas do usuário (aceita arredondamento, duração "68h58" de minutos/horas, horário local
-  de um instante ISO; ignora inteiro até 31 sem unidade, ano e contagem de tempo). Com número sem fonte, o modelo
-  responde de novo uma vez, recebendo a lista; se repetir, o app recebe `RESPOSTA_BARRADA` e a falha vai ao log. O
-  modelo NÃO faz conta: `comVariacoes` põe `diferenca` e `variacaoPct` em todo par `{ valor, anterior }` do retrato e
-  das consultas. `responderEmFluxo` só solta o texto DEPOIS de conferido (em pedaços de linha); `ia.transmitir` não é
-  mais usado pelo serviço. Limite conhecido: a conferência garante que o número existe nos dados, não que ele foi
-  usado no lugar certo (um número real citado para a máquina errada passa).
+- Conferência dos números da IA (16/11, o Alisson: "ela nunca pode inventar NENHUM dado", "não pode acontecer" número
+  certo no lugar errado, e "tem que ser rápido"): `assistente/conferencia.ts`, `conferirResposta(resposta, fontes)`.
+  Lê o retrato e o resultado de cada consulta COMO OBJETOS e guarda, de cada número, a medida (pelo nome do campo:
+  `areaHa`, `litros`, `consumoLPorHora`, `paradoMin`...; ou pela `unidade` do item da análise), de quem é (o objeto
+  com `nome`/`maquinaNome`/`maquina` que o contém) e de que período (`inicio`/`fim`, `mes`, `dia`, `de`/`ate`;
+  `anterior` é do período anterior). Cada número da resposta precisa de uma folha com o mesmo valor (aceita
+  arredondamento e duração "68h58"), da mesma MEDIDA, da máquina/talhão que a frase, a linha da tabela, o título ou a
+  pergunta cita (número de máquina sem o nome dela é recusado; número da fazenda numa frase com máquina exige "a
+  fazenda"/"total") e do PERÍODO citado (mês pelo nome, data, hoje, ontem, semana; número de um dia não vale como o do
+  mês). Não conferidos: inteiro até 31 sem unidade, ano, contagem de tempo, código colado em letra. Nas regras e no
+  texto do usuário basta o número existir. O modelo NÃO faz conta: `comVariacoes` põe `diferenca` e `variacaoPct` em
+  todo par `{ valor, anterior }`. Fluxo: `PortaDeLinhas` (em `assistente.service.ts`) solta cada LINHA assim que ela
+  confere, enquanto o modelo ainda escreve; a primeira que não confere fecha a porta, o modelo responde de novo uma
+  vez (recebendo a lista com o motivo) e o texto final substitui o da tela; se repetir, vai `RESPOSTA_BARRADA` e a
+  falha fica no log. `consultar_analise_da_maquina` devolve `{ maquina: <nome>, de, ate, medicoes: [...] }` para a
+  conferência saber de quem é. Limites: o que a frase não diz (período ou máquina omitidos em tudo, inclusive na
+  pergunta) não tem como ser conferido; e texto sem número (ex.: "a que mais parou foi X") não é conferido.
 - Resposta da IA organizada (15/11): as instruções mandam começar pela frase com o número em **negrito** e, quando há
   várias partes, tabela (até 4 colunas), título `## ` e tópicos `- `; só essa marcação é permitida. No app,
   `features/assistente/formatar.ts` (`lerBlocos`, puro, aguenta resposta pela metade) e `components/TextoFormatado.tsx`

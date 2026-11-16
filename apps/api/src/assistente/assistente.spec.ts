@@ -64,11 +64,11 @@ describe('ferramenta de relatório', () => {
       responder: async (_instrucoes, _conversa, ferramentas) => {
         achado = await ferramentas?.consultarRelatorio({ periodo: 'mes', data: '2026-10-15' });
         invalido = await ferramentas?.consultarRelatorio({ periodo: 'ano' });
-        return 'Em outubro foram 10 ha.';
+        return `Em outubro a fazenda fez ${String((achado as any).indicadores.areaHa.valor).replace('.', ',')} ha.`;
       },
     };
     const resposta = await (await montar(ia)).responder(ANA, null, 'Como foi outubro?', AGORA);
-    expect(resposta.texto).toBe('Em outubro foram 10 ha.');
+    expect(resposta.texto).toMatch(/^Em outubro a fazenda fez [\d,]+ ha\.$/);
     expect(achado).toMatchObject({ periodo: 'mes', inicio: '2026-10-01', fim: '2026-10-31' });
     expect(invalido).toMatchObject({ erro: expect.stringContaining('Pedido inválido') });
   });
@@ -289,6 +289,25 @@ describe('conferência dos números', () => {
     expect((await servico.abrirConversa(ANA, r.conversaId)).mensagens.map((m) => m.texto)).toEqual(['Quanto fizemos no ano?', 'Hoje foram 342 ha.']);
   });
 
+  it('número real dado à máquina errada, ou ao período errado, também é barrado', async () => {
+    const tentativas: string[] = [];
+    const ia: ModeloIa = {
+      responder: async (_instrucoes, _conversa, ferramentas) => {
+        const outubro: any = await ferramentas?.consultarRelatorio({ periodo: 'mes', data: '2026-10-15' });
+        const [a, b] = outubro.porMaquina.filter((m: any) => m.horas > 0);
+        const horas = (n: number) => String(n).replace('.', ',');
+        // 1ª: as horas de uma máquina com o nome da outra. 2ª: o número de outubro dito como de hoje. As duas são barradas.
+        const texto = tentativas.length === 0 ? `Em outubro o ${b.nome} trabalhou ${horas(a.horas)} h.` : `Hoje o ${a.nome} trabalhou ${horas(a.horas)} h.`;
+        expect(a.horas).not.toBe(b.horas);
+        tentativas.push(texto);
+        return texto;
+      },
+    };
+    const r = await (await montar(ia)).responder(ANA, null, 'Quanto cada máquina trabalhou?', AGORA);
+    expect(tentativas).toHaveLength(2);
+    expect(r.texto).toBe(RESPOSTA_BARRADA);
+  });
+
   it('se a segunda resposta também inventa, nenhuma é mostrada', async () => {
     const ia: ModeloIa = { responder: async () => 'Foram 17.485 ha no ano e 4.470 ha em novembro.' };
     const servico = await montar(ia);
@@ -327,6 +346,43 @@ describe('resposta em fluxo', () => {
     expect(r.texto).toBe(texto);
     expect(r.sugestoes).toEqual(['Quem parou?', 'E a semana?']);
     expect((await servico.abrirConversa(ANA, r.conversaId)).mensagens.at(-1)?.texto).toBe(texto);
+  });
+
+  it('em fluxo, cada linha sai assim que é conferida, antes de a resposta terminar', async () => {
+    const linhas = ['Hoje a fazenda fez **342 ha**.\n', '\n', '- Tudo dentro do esperado.\n', 'SUGESTOES: E a semana?'];
+    const vistos: string[] = [];
+    let vistoAntesDoFim = '';
+    const ia: ModeloIa = {
+      responder: async () => linhas.join(''),
+      transmitir: async (_i, _c, _f, aoTrecho) => {
+        // O modelo manda em pedaços que não respeitam as linhas.
+        for (const pedaco of linhas.join('').match(/.{1,7}/gs) ?? []) aoTrecho(pedaco);
+        vistoAntesDoFim = vistos.join('');
+        return linhas.join('');
+      },
+    };
+    const r = await (await montar(ia)).responderEmFluxo(ANA, null, 'Como foi hoje?', (t) => vistos.push(t), AGORA);
+    expect(vistoAntesDoFim).toContain('Hoje a fazenda fez **342 ha**.');
+    expect(vistos.join('')).toBe(r.texto);
+    expect(r.sugestoes).toEqual(['E a semana?']);
+  });
+
+  it('em fluxo, a linha com número sem fonte não sai, nem o que vem depois dela; o texto final é o conferido', async () => {
+    const vistos: string[] = [];
+    let chamadas = 0;
+    const ia: ModeloIa = {
+      responder: async () => (++chamadas, 'Hoje a fazenda fez 342 ha.'),
+      transmitir: async (_i, _c, _f, aoTrecho) => {
+        const texto = 'Hoje a fazenda fez 342 ha.\nNo ano foram 17.485 ha.\nE mais 99.999 L.\n';
+        aoTrecho(texto);
+        return texto;
+      },
+    };
+    const r = await (await montar(ia)).responderEmFluxo(ANA, null, 'Como foi?', (t) => vistos.push(t), AGORA);
+    expect(vistos.join('')).not.toContain('17.485');
+    expect(vistos.join('')).not.toContain('99.999');
+    expect(chamadas).toBe(1);
+    expect(r.texto).toBe('Hoje a fazenda fez 342 ha.');
   });
 
   it('com uma IA que não transmite, entrega a resposta de uma vez', async () => {

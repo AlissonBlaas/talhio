@@ -9,8 +9,8 @@ import { RelatoriosService } from '../relatorios/relatorios.service.js';
 import { diaLocal } from '../shared/dia.js';
 import { TalhoesService } from '../talhoes/talhoes.service.js';
 import { ConversasRepository, type Dono } from './conversas.repository.js';
-import { comVariacoes, numerosSemFonte } from './conferencia.js';
-import { montarInstrucoes, separarSugestoes } from './instrucoes.js';
+import { comVariacoes, conferirResposta } from './conferencia.js';
+import { CortaSugestoes, MARCA_DOS_DADOS, montarInstrucoes, separarSugestoes } from './instrucoes.js';
 import { IaIndisponivel, IaNaoConfigurada, MODELO_IA, type Ferramentas, type ModeloIa, type MotivoDaFalha } from './modelo-ia.js';
 
 /** Quantas mensagens anteriores vão para o modelo. O histórico inteiro continua guardado. */
@@ -41,6 +41,45 @@ function anotarFalha(erro: unknown, agora: Date) {
 /** O que a pessoa vê quando a resposta do modelo traz número que o servidor não consegue confirmar, mesmo na segunda tentativa. */
 export const RESPOSTA_BARRADA = 'Não consegui confirmar nos dados da fazenda todos os números dessa resposta, então não vou mostrá-la. Pergunte de novo de um jeito mais direto: um período (um dia, um mês) e, se quiser, uma máquina.';
 
+/**
+ * Deixa a resposta sair para o app linha a linha, e só linha conferida. Recebe o texto como o modelo escreve; a cada
+ * linha completa confere tudo que chegou até ali e solta a parte nova. Na primeira linha que não confere, fecha.
+ */
+class PortaDeLinhas {
+  private recebido = '';
+  private enviado = 0;
+  private fechada = false;
+
+  constructor(
+    private readonly conferir: (texto: string) => string[],
+    private readonly aoTrecho: (trecho: string) => void,
+  ) {}
+
+  empurrar(trecho: string): void {
+    if (!trecho || this.fechada) return;
+    this.recebido += trecho;
+    const fimDaLinha = this.recebido.lastIndexOf('\n');
+    if (fimDaLinha < this.enviado) return;
+    const completo = this.recebido.slice(0, fimDaLinha + 1);
+    if (this.conferir(completo).length > 0) {
+      this.fechada = true;
+      return;
+    }
+    this.soltar(completo);
+  }
+
+  /** Fim: `final` é o texto conferido que fica valendo. Sai o que faltava dele, se o que já saiu é o começo dele. */
+  terminar(final: string): void {
+    if (final.startsWith(this.recebido.slice(0, this.enviado))) this.soltar(final);
+  }
+
+  private soltar(ate: string): void {
+    // Em pedaços de linha, para a tela ir preenchendo em vez de mudar de uma vez.
+    for (const pedaco of ate.slice(this.enviado).match(/[^\n]*\n?/g) ?? []) if (pedaco) this.aoTrecho(pedaco);
+    this.enviado = Math.max(this.enviado, ate.length);
+  }
+}
+
 const naoEncontrada = () => new NotFoundException({ codigo: 'CONVERSA_NAO_ENCONTRADA', mensagem: 'Essa conversa não existe mais.' });
 
 @Injectable()
@@ -64,45 +103,59 @@ export class AssistenteService {
   }
 
   /**
-   * Igual a `responder`, mas `aoTrecho` recebe o texto em pedaços. O texto só começa a sair DEPOIS de conferido
-   * (todo número com fonte): nada que o modelo escreve chega ao app antes da conferência.
+   * Igual a `responder`, mas `aoTrecho` recebe o texto enquanto o modelo escreve, LINHA A LINHA: cada linha só sai
+   * depois de conferida (todo número com fonte, na máquina, na medida e no período certos). Se uma linha não confere,
+   * nada mais sai; o modelo responde de novo e o texto final, conferido, substitui o que estava na tela.
    */
-  async responderEmFluxo(dono: Dono, conversaId: string | null, texto: string, aoTrecho: (trecho: string) => void, agora = new Date()): Promise<Resposta> {
-    const resposta = await this.executar(dono, conversaId, texto, agora);
-    // Em pedaços de linha, para a tela ir preenchendo em vez de mudar de uma vez.
-    for (const pedaco of resposta.texto.match(/[^\n]*\n?/g) ?? []) if (pedaco) aoTrecho(pedaco);
-    return resposta;
+  responderEmFluxo(dono: Dono, conversaId: string | null, texto: string, aoTrecho: (trecho: string) => void, agora = new Date()): Promise<Resposta> {
+    return this.executar(dono, conversaId, texto, agora, aoTrecho);
   }
 
-  private async executar(dono: Dono, conversaId: string | null, texto: string, agora: Date): Promise<Resposta> {
+  private async executar(dono: Dono, conversaId: string | null, texto: string, agora: Date, aoTrecho?: (trecho: string) => void): Promise<Resposta> {
     // Só as últimas mensagens vão ao modelo, e só elas são lidas do banco.
     const anterior = conversaId ? await this.conversas.buscar(dono, conversaId, { limite: MEMORIA_DA_CONVERSA }) : null;
     if (conversaId && !anterior) throw naoEncontrada();
 
     const conversa: Mensagem[] = [...(anterior?.mensagens ?? []), { papel: 'usuario', texto }];
-    const instrucoes = montarInstrucoes(comVariacoes(await this.retratoDaFazenda(dono.orgId, agora)), agora);
+    const retrato = comVariacoes(await this.retratoDaFazenda(dono.orgId, agora));
+    const instrucoes = montarInstrucoes(retrato, agora);
 
     let resposta: { texto: string; sugestoes: string[] };
     try {
       // Tudo que as consultas devolvem fica anotado: é contra isso (e o retrato) que os números da resposta são conferidos.
-      const consultas: string[] = [];
-      const ferramentas = this.ferramentasDa(dono.orgId, agora, (resultado) => consultas.push(JSON.stringify(resultado)));
-      const fontes = () => [instrucoes, ...consultas, ...conversa.filter((m) => m.papel === 'usuario').map((m) => m.texto)];
+      const consultas: unknown[] = [];
+      const ferramentas = this.ferramentasDa(dono.orgId, agora, (resultado) => consultas.push(resultado));
+      // As regras (sem os DADOS) e o que a pessoa escreveu: ali basta o número existir. Nos dados, ele tem que estar no lugar certo.
+      const regras = instrucoes.slice(0, instrucoes.indexOf(MARCA_DOS_DADOS));
+      const conferir = (escrito: string) =>
+        conferirResposta(escrito, { dados: [retrato, ...consultas], textos: [regras, ...conversa.filter((m) => m.papel === 'usuario').map((m) => m.texto)], pergunta: texto, hoje: diaLocal(agora) });
 
-      resposta = separarSugestoes(await this.ia.responder(instrucoes, conversa, ferramentas));
+      // Em fluxo, cada linha completa é conferida e sai na hora; a que não confere fecha a porta.
+      const porta = aoTrecho ? new PortaDeLinhas(conferir, aoTrecho) : null;
+      if (porta && this.ia.transmitir) {
+        const corte = new CortaSugestoes();
+        const bruto = await this.ia.transmitir(instrucoes, conversa, ferramentas, (t) => porta.empurrar(corte.empurrar(t)));
+        porta.empurrar(corte.terminar());
+        resposta = separarSugestoes(bruto);
+      } else {
+        resposta = separarSugestoes(await this.ia.responder(instrucoes, conversa, ferramentas));
+      }
       if (!resposta.texto) throw new Error('Resposta vazia');
-      let semFonte = numerosSemFonte(resposta.texto, fontes());
+      let semFonte = conferir(resposta.texto);
       if (semFonte.length > 0) {
         // Uma segunda chance, dizendo exatamente quais números não têm fonte. A primeira resposta não é mostrada nem guardada.
-        const aviso = `[Conferência automática] A resposta acima NÃO foi mostrada: estes números não estão nos DADOS nem em nenhuma consulta: ${semFonte.slice(0, 12).join('; ')}. Responda de novo à minha última pergunta. Consulte o que faltar e use só números que vierem dos DADOS ou das consultas, escritos como vieram (pode arredondar). Não faça conta. O que não tiver, diga em uma frase que não tem. Não mencione esta conferência.`;
+        const aviso = `[Conferência automática] A resposta acima NÃO foi mostrada. Estes números não conferem com os DADOS nem com as consultas: ${semFonte.slice(0, 12).join('; ')}. Responda de novo à minha última pergunta. Consulte o que faltar e use só números que vierem dos DADOS ou das consultas, escritos como vieram (pode arredondar), cada um na frase (ou na linha da tabela) que cita a máquina e o período a que ele pertence. Número da fazenda inteira: escreva "a fazenda" ou "no total" na mesma frase. Não faça conta. O que não tiver, diga em uma frase que não tem. Não mencione esta conferência.`;
         const segunda = separarSugestoes(await this.ia.responder(instrucoes, [...conversa, { papel: 'assistente', texto: resposta.texto }, { papel: 'usuario', texto: aviso }], ferramentas));
-        semFonte = segunda.texto ? numerosSemFonte(segunda.texto, fontes()) : semFonte;
+        semFonte = segunda.texto ? conferir(segunda.texto) : semFonte;
         if (segunda.texto && semFonte.length === 0) resposta = segunda;
         else {
           anotarFalha(new Error(`resposta barrada pela conferência; números sem fonte: ${semFonte.join('; ')}`), agora);
           resposta = { texto: RESPOSTA_BARRADA, sugestoes: [] };
         }
       }
+      // O que ainda não saiu (o fim da resposta, ou ela inteira quando não houve fluxo). Se parte de uma resposta
+      // recusada já saiu, nada mais é mandado: o texto final substitui o da tela quando a resposta termina.
+      porta?.terminar(resposta.texto);
     } catch (erro) {
       // Nada é gravado quando a IA falha: "tentar de novo" não duplica a pergunta.
       if (erro instanceof IaNaoConfigurada) {
@@ -145,9 +198,11 @@ export class AssistenteService {
         const lido = PedidoDeAnalise.safeParse(pedido);
         if (!lido.success) return { erro: 'Pedido inválido: informe maquina (id) e de (AAAA-MM-DD); ate é opcional.' };
         const analise = await this.maquinas.analise(orgId, lido.data.maquina, lido.data.de, lido.data.ate ?? lido.data.de, agora);
-        if (analise.grupos.length === 0) return { ...analise, aviso: 'A máquina não tem medições nesse período (sem telemetria ou não reportou).' };
-        // Os ids das medições não ajudam a responder e só gastam contexto.
-        return { ...analise, grupos: analise.grupos.map((g) => ({ nome: g.nome, itens: g.itens.map(({ id: _id, ...item }) => item) })) };
+        // Com o NOME da máquina (é por ele que a conferência sabe de quem é cada número) e sem os ids das medições.
+        const maquina = (await this.maquinas.listar(orgId, agora)).find((m) => m.id === analise.maquinaId)?.nome ?? analise.maquinaId;
+        const base = { maquina, de: analise.de, ate: analise.ate };
+        if (analise.grupos.length === 0) return { ...base, medicoes: [], aviso: 'A máquina não tem medições nesse período (sem telemetria ou não reportou).' };
+        return { ...base, medicoes: analise.grupos.flatMap((g) => g.itens.map(({ id: _id, nome, ...item }) => ({ grupo: g.nome, medicao: nome, ...item }))) };
       },
     };
     return {
