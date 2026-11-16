@@ -15,7 +15,6 @@ import { cores, MARGEM_TELA } from '@/shared/theme/tokens';
 
 import { AcoesRapidas } from '../components/AcoesRapidas';
 import { CabecalhoInicio } from '../components/CabecalhoInicio';
-import { CartaoAlerta } from '../components/CartaoAlerta';
 import { EscalaDeHoje } from '../components/EscalaDeHoje';
 import { MiniMapa } from '../components/MiniMapa';
 import { PerguntaRapida } from '../components/PerguntaRapida';
@@ -53,7 +52,6 @@ export function InicioScreen() {
             <MiniMapa />
           </Surgir>
           <ProgressoOperacao />
-          <CartaoAlerta />
           <AcoesRapidas />
           <RelatorioDeHoje />
           <PerguntaRapida />
