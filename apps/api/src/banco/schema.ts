@@ -87,6 +87,8 @@ export const talhoes = pgTable(
     areaHa: doublePrecision('area_ha').notNull(),
     /** GeoJSON Polygon. Vira coluna PostGIS quando precisarmos de consulta espacial no banco. */
     contorno: jsonb('contorno').$type<Contorno>().notNull(),
+    /** Id do mesmo talhão no Operations Center, quando o administrador mandou criar lá. Nulo = só no Talhio. */
+    deereId: text('deere_id'),
     criadoEm: criadoEm(),
   },
   (t) => [index('talhoes_org_idx').on(t.orgId)],

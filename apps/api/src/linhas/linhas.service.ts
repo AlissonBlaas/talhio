@@ -58,9 +58,12 @@ export class LinhasService {
     // Ela JÁ está salva no Talhio: se a John Deere recusa (talhão desenhado ou importado no app, que ela não conhece;
     // conta sem permissão de escrita; fora do ar), a linha continua valendo no mapa e no plano, só não vai ao monitor.
     try {
+      // Talhão desenhado no app só existe na John Deere se o administrador mandou criar lá: sem isso não há para onde enviar.
+      const talhaoNaDeere = await this.talhoes.idNaDeere(orgId, talhao.id);
+      if (!talhaoNaDeere) return { ...linha, envio: 'so-no-talhio' };
       await this.provedor.enviarLinha(
         orgId,
-        { id: linha.id, nome: linha.nome, talhaoId: linha.talhaoId, a: [linha.a.lng, linha.a.lat], b: [linha.b.lng, linha.b.lat], padrao: linha.padraoDaFazenda },
+        { id: linha.id, nome: linha.nome, talhaoId: talhaoNaDeere, a: [linha.a.lng, linha.a.lat], b: [linha.b.lng, linha.b.lat], padrao: linha.padraoDaFazenda },
         linha.id,
       );
       return { ...linha, envio: 'enviada' };

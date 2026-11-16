@@ -183,6 +183,13 @@
       "when": 1794866606663,
       "tag": "0025_rainy_the_order",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1794867461653,
+      "tag": "0026_true_silver_centurion",
+      "breakpoints": true
     }
   ]
 }

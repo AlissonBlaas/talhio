@@ -300,6 +300,14 @@ Backend (`apps/api/src`)
 - Linha AB em talhão que a John Deere não conhece (16/11, erro "A John Deere não encontrou esse dado" ao criar talhão
   no app): `LinhasService.criar` salva a linha e TENTA enviar; se a Deere recusa, a linha continua valendo e a
   resposta traz `envio: 'so-no-talhio'` (senão `'enviada'`). Antes o erro subia com a linha já gravada.
+- Talhão do app também na John Deere (16/11, o Alisson: "o novo plano é o que iria ao monitor"): `NovoTalhaoSchema.
+  enviarParaDeere`. `TalhoesService.criar` salva e, se pedido, chama `provedor.enviarTalhao` (cria o talhão e o contorno
+  na organização principal; mesmo nome é reaproveitado) e grava `talhoes.deere_id` (migração 0026). A resposta traz
+  `envioDeere`: enviado | recusado | nao-pedido; recusado NÃO desfaz o talhão. `listar` esconde a cópia que volta da
+  Deere (fica o id do Talhio, que linhas e planos conhecem). `TalhoesService.idNaDeere` diz para onde vai a linha AB:
+  talhão do app sem cópia = não envia (`so-no-talhio`). No app, `NovoTalhaoScreen` PERGUNTA antes de salvar ("Criar
+  também na John Deere?"), só com a Deere conectada: é escrita na conta do cliente e o Talhio não apaga de lá.
+  NÃO conferido contra a Deere real (formato de `fields`/`boundaries` e permissão de escrita).
 - Resposta da IA organizada (15/11): as instruções mandam começar pela frase com o número em **negrito** e, quando há
   várias partes, tabela (até 4 colunas), título `## ` e tópicos `- `; só essa marcação é permitida. No app,
   `features/assistente/formatar.ts` (`lerBlocos`, puro, aguenta resposta pela metade) e `components/TextoFormatado.tsx`

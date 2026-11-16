@@ -222,6 +222,17 @@ export class FakeProvedor implements ProvedorMaquinas {
     }
   }
 
+  /** Talhões "criados na conta": só guarda, para os testes conferirem. */
+  readonly talhoesEnviados: { id: string; nome: string }[] = [];
+
+  async enviarTalhao(_orgId: string, talhao: { nome: string; contorno: [number, number][] }): Promise<string> {
+    const ja = this.talhoesEnviados.find((t) => t.nome.toLowerCase() === talhao.nome.toLowerCase());
+    if (ja) return ja.id;
+    const id = `campo-${this.talhoesEnviados.length + 1}`;
+    this.talhoesEnviados.push({ id, nome: talhao.nome });
+    return id;
+  }
+
   async importarFazenda(_orgId: string, fazenda: FazendaImportada): Promise<void> {
     // Substitui a fazenda atual (a de demonstração ou a importada antes).
     this.fazenda = fazenda;

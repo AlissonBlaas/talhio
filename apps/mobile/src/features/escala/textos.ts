@@ -68,3 +68,14 @@ export function textoDaEscala(escala: Escala): string {
   });
   return [`📋 *Escala de hoje*`, `📅 ${diaPorExtenso(escala.dia)}`, '', blocos.join('\n\n')].join('\n');
 }
+
+/**
+ * O aviso de uma troca na escala, para o grupo da equipe: quem sai e quem entra em qual máquina e turno.
+ * `sai` nulo = turno novo; `entra` nulo = turno tirado da escala.
+ */
+export function textoDaTroca(troca: { maquinaNome: string; implemento: string | null; turno: Turno; sai: string | null; entra: string | null; tarefa: string | null; talhaoNome: string | null }): string {
+  const maquina = `${emojiDaMaquina(troca.maquinaNome)} *${troca.maquinaNome}${troca.implemento ? ` (${troca.implemento})` : ''}* · 🕐 ${rotuloDoTurno(troca.turno)}`;
+  const tarefa = troca.tarefa ? `${emojiDaTarefa(troca.tarefa)} ${troca.tarefa}`.trim() : null;
+  const onde = [tarefa, troca.talhaoNome ? `📍 ${troca.talhaoNome}` : null].filter(Boolean).join(' · ');
+  return ['🔄 *Mudança na escala de hoje*', maquina, troca.sai ? `➖ Sai: ${troca.sai}` : null, troca.entra ? `👤 Entra: ${troca.entra}` : null, troca.entra ? onde : null].filter(Boolean).join('\n');
+}

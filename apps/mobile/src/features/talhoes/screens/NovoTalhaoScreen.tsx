@@ -1,8 +1,9 @@
 import { useRouter } from 'expo-router';
 import { useMemo, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useConexaoDeere } from '@/features/conexao';
 import { BotoesDeZoom, CamadaContornos, CamadaDesenhoTalhao, MapaBase, type MapaControle } from '@/mapa-motor';
 import { Carregando, ErroComTentarDeNovo } from '@/shared/components/estado-tela';
 import { Icone } from '@/shared/components/Icone';
@@ -77,10 +78,28 @@ export function NovoTalhaoScreen() {
   const nomeVazio = nome.trim() === '';
   const erro = tentouSalvar && nomeVazio ? 'Dê um nome ao talhão' : (erroSalvar?.message ?? null);
 
+  const { conexao } = useConexaoDeere();
+  const comDeere = conexao?.modo === 'deere' && conexao.estado === 'pronto';
+
   const salvar = () => {
     setTentouSalvar(true);
-    if (nomeVazio || !desenho.contorno) return;
-    criar({ nome: nome.trim(), contorno: desenho.contorno });
+    const contorno = desenho.contorno;
+    if (nomeVazio || !contorno) return;
+    const gravar = (enviarParaDeere: boolean) =>
+      criar(
+        { nome: nome.trim(), contorno, enviarParaDeere },
+        {
+          onSuccess: (talhao) => {
+            if (talhao.envioDeere === 'recusado') Alert.alert('Salvo só no Talhio', 'O talhão foi salvo, mas a John Deere não aceitou criar lá. Ele vale para o mapa, a escala e os relatórios; a linha e o plano dele não chegam ao monitor do trator.');
+          },
+        },
+      );
+    if (!comDeere) return gravar(false);
+    // Criar na John Deere é escrever na conta da fazenda: só com o "sim" de quem está salvando.
+    Alert.alert('Criar também na John Deere?', 'O talhão é criado no Operations Center da fazenda, para a linha e o plano poderem chegar ao monitor do trator. Ele fica visível para quem usa a conta e só sai de lá arquivando no Operations Center.', [
+      { text: 'Só no Talhio', onPress: () => gravar(false) },
+      { text: 'Criar na John Deere', onPress: () => gravar(true) },
+    ]);
   };
 
   return (

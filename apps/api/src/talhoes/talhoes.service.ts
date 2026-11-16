@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { BadRequestException, ConflictException, Inject, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Inject, Injectable, Logger } from '@nestjs/common';
 import type { ProvedorMaquinas, ResumoFazendaExterno } from '@talhio/deere';
 import { areaHaDoPoligono, NovoTalhaoSchema, type Talhao } from '@talhio/shared';
 import type { z } from 'zod';
@@ -12,6 +12,8 @@ const AREA_MINIMA_HA = 0.1;
 
 @Injectable()
 export class TalhoesService {
+  private readonly log = new Logger('Talhoes');
+
   constructor(
     @Inject(PROVEDOR_MAQUINAS) private readonly provedor: ProvedorMaquinas,
     @Inject(TalhoesRepository) private readonly repositorio: TalhoesRepository,
@@ -19,14 +21,18 @@ export class TalhoesService {
 
   /** Talhões importados do provedor mais os criados no app. */
   async listar(orgId: string): Promise<Talhao[]> {
-    const [externos, resumo] = await Promise.all([
+    const [externos, resumo, naDeere] = await Promise.all([
       this.provedor.listarTalhoes(orgId),
       // O andamento é um extra: se a Deere falhar nele, os talhões ainda aparecem.
       this.provedor.resumoDaFazenda(orgId).catch((): ResumoFazendaExterno => ({ nome: '', operacoesPorTalhao: {}, percentualPorTalhao: {}, operacaoAtual: null })),
+      this.repositorio.naDeere(orgId),
     ]);
+    // Talhão desenhado no app e criado também na John Deere volta de lá como outro talhão: fica só o do app, que é
+    // o id que as linhas e os planos conhecem.
+    const copias = new Set(naDeere.values());
     const importados = externos
       // Só sai o que o contrato aceita: um talhão sem área ou com contorno incompleto não pode derrubar a lista no app.
-      .filter((externo) => externo.areaHa > 0 && externo.contorno.length >= 4 && externo.nome.trim().length > 0)
+      .filter((externo) => !copias.has(externo.id) && externo.areaHa > 0 && externo.contorno.length >= 4 && externo.nome.trim().length > 0)
       .map((externo) => paraTalhao(externo, resumo.operacoesPorTalhao[externo.id] ?? null, resumo.percentualPorTalhao[externo.id] ?? 0));
     return [...importados, ...(await this.repositorio.listar(orgId))];
   }
@@ -58,6 +64,27 @@ export class TalhoesService {
       percentualFeito: null,
     };
     await this.repositorio.salvar(orgId, talhao);
-    return talhao;
+    if (!dados.enviarParaDeere) return { ...talhao, envioDeere: 'nao-pedido' };
+    // O talhão JÁ está salvo no Talhio. Criar na John Deere é um extra pedido por quem salvou: se ela recusa
+    // (sem permissão de escrita, fora do ar, servidor de demonstração), o talhão continua valendo aqui.
+    try {
+      if (!this.provedor.enviarTalhao) throw new Error('este servidor não está ligado à John Deere');
+      const deereId = await this.provedor.enviarTalhao(orgId, { nome: talhao.nome, contorno: fechado as [number, number][] });
+      await this.repositorio.ligarADeere(orgId, talhao.id, deereId);
+      return { ...talhao, envioDeere: 'enviado' };
+    } catch (erro) {
+      this.log.warn(`talhão ${talhao.id} salvo, mas não criado na John Deere: ${erro instanceof Error ? erro.message : String(erro)}`);
+      return { ...talhao, envioDeere: 'recusado' };
+    }
+  }
+
+  /**
+   * Para onde mandar na John Deere o que é de um talhão (a linha AB): o id dele LÁ. Talhão desenhado no app sem cópia
+   * na Deere devolve nulo (não há para onde mandar); talhão que veio da própria Deere usa o id que já tem.
+   */
+  async idNaDeere(orgId: string, talhaoId: string): Promise<string | null> {
+    const copia = (await this.repositorio.naDeere(orgId)).get(talhaoId);
+    if (copia) return copia;
+    return (await this.repositorio.ids(orgId)).has(talhaoId) ? null : talhaoId;
   }
 }

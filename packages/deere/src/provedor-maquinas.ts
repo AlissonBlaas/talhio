@@ -48,6 +48,11 @@ export interface ProvedorMaquinas {
   listarLinhas(orgId: string): Promise<LinhaExterna[]>;
   enviarLinha(orgId: string, linha: LinhaExterna, chaveIdempotencia: string): Promise<void>;
   /**
+   * Cria UM talhão (com o contorno) na conta do fabricante e devolve o id dele lá. Talhão com o mesmo nome que já
+   * exista é reaproveitado, sem contorno novo. ESCREVE na conta do cliente: só a pedido explícito de quem salva.
+   */
+  enviarTalhao?(orgId: string, talhao: { nome: string; contorno: [number, number][] }): Promise<string>;
+  /**
    * Recebe talhões e linhas lidos de arquivo (ver `lerArquivosGen4`).
    * No provedor real: cria talhões, contornos e linhas de guia no Operations Center.
    */

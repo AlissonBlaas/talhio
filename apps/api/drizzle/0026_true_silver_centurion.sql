@@ -1,0 +1,1 @@
+ALTER TABLE "talhoes" ADD COLUMN "deere_id" text;

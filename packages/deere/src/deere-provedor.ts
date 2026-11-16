@@ -694,6 +694,26 @@ export class DeereProvedor implements ProvedorMaquinas {
   }
 
   /**
+   * Cria UM talhão no Operations Center, com o contorno ativo, e devolve o id dele lá. Mesmo nome de um talhão que já
+   * existe (não arquivado): reaproveita e não mexe no contorno. ESCREVE na conta da John Deere: só a pedido explícito.
+   * O talhão vai para a organização principal da fazenda.
+   */
+  async enviarTalhao(orgId: string, talhao: { nome: string; contorno: [number, number][] }): Promise<string> {
+    const org = encodeURIComponent(await this.config.obterOrganizacao(orgId));
+    const existentes = await this.cliente.listar<CampoDeere>(orgId, `/organizations/${org}/fields`);
+    const igual = existentes.find((c) => !c.archived && (c.name ?? '').trim().toLowerCase() === talhao.nome.trim().toLowerCase());
+    if (igual) return String(igual.id);
+    const cliente = await this.nomeDaFazenda(orgId).catch(() => 'Fazenda');
+    const id = await this.cliente.criar(orgId, `/organizations/${org}/fields`, campoParaEnviar(talhao.nome, cliente));
+    if (!id) throw new Error(`A John Deere não devolveu o id do talhão ${talhao.nome}.`);
+    await this.cliente.criar(orgId, `/organizations/${org}/fields/${encodeURIComponent(id)}/boundaries`, contornoParaEnviar(talhao.nome, talhao.contorno));
+    // Os talhões mudaram: a próxima leitura busca de novo na Deere em vez de devolver a lista guardada.
+    this.guardados.delete(`talhoes/${orgId}`);
+    this.ultimos.delete(`talhoes/${orgId}`);
+    return id;
+  }
+
+  /**
    * Área e horas da máquina no dia, a partir das operações de campo. A API informa o total da operação, não o
    * de cada dia: operação que atravessa dias é repartida pelo tempo (estimativa). Combustível e tempo parado
    * dependem do export ponto a ponto e por enquanto vêm zerados.
