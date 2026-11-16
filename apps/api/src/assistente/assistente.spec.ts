@@ -16,7 +16,7 @@ import { RelatoriosService } from '../relatorios/relatorios.service.js';
 import { EscalaRepository } from '../escala/escala.repository.js';
 import { TalhoesRepository } from '../talhoes/talhoes.repository.js';
 import { TalhoesService } from '../talhoes/talhoes.service.js';
-import { AssistenteService } from './assistente.service.js';
+import { AssistenteService, RESPOSTA_BARRADA } from './assistente.service.js';
 import { ConversasRepository } from './conversas.repository.js';
 import { CortaSugestoes, separarSugestoes } from './instrucoes.js';
 import { IaDesligada, IaIndisponivel, MODELO_IA, type ModeloIa } from './modelo-ia.js';
@@ -268,24 +268,65 @@ describe('separarSugestoes', () => {
   });
 });
 
-describe('resposta em fluxo', () => {
-  it('o texto chega aos poucos, sem as sugestões, e a conversa guarda o texto inteiro', async () => {
-    const pedacos = ['Hoje foram ', '12 ha ', 'no total.\nSUGES', 'TOES: Quem parou? | E a semana?'];
+describe('conferência dos números', () => {
+  it('número sem fonte não chega ao app: o modelo responde de novo e só a resposta conferida é mostrada e guardada', async () => {
+    const recebido: Mensagem[][] = [];
     const ia: ModeloIa = {
-      responder: async () => pedacos.join(''),
-      transmitir: async (_i, _c, _f, aoTrecho) => {
-        pedacos.forEach(aoTrecho);
-        return pedacos.join('');
+      responder: async (_instrucoes, conversa) => {
+        recebido.push(conversa);
+        return recebido.length === 1 ? 'O total do ano foi 17.485 ha.\nSUGESTOES: E o mês?' : 'Hoje foram 342 ha.\nSUGESTOES: E a semana?';
       },
     };
     const servico = await montar(ia);
     const vistos: string[] = [];
+    const r = await servico.responderEmFluxo(ANA, null, 'Quanto fizemos no ano?', (t) => vistos.push(t), AGORA);
+    expect(r).toMatchObject({ texto: 'Hoje foram 342 ha.', sugestoes: ['E a semana?'] });
+    expect(vistos.join('')).toBe('Hoje foram 342 ha.');
+    // A segunda chamada recebe a resposta barrada e a lista do que não tem fonte.
+    expect(recebido).toHaveLength(2);
+    expect(recebido[1]!.at(-1)!.texto).toContain('17.485 ha');
+    // Só a pergunta e a resposta conferida ficam na conversa.
+    expect((await servico.abrirConversa(ANA, r.conversaId)).mensagens.map((m) => m.texto)).toEqual(['Quanto fizemos no ano?', 'Hoje foram 342 ha.']);
+  });
+
+  it('se a segunda resposta também inventa, nenhuma é mostrada', async () => {
+    const ia: ModeloIa = { responder: async () => 'Foram 17.485 ha no ano e 4.470 ha em novembro.' };
+    const servico = await montar(ia);
+    const vistos: string[] = [];
+    const r = await servico.responderEmFluxo(ANA, null, 'Quanto fizemos no ano?', (t) => vistos.push(t), AGORA);
+    expect(r.texto).toBe(RESPOSTA_BARRADA);
+    expect(vistos.join('')).toBe(RESPOSTA_BARRADA);
+    expect(vistos.join('')).not.toContain('17.485');
+  });
+
+  it('número que veio de uma consulta desta resposta tem fonte, e a variação em % chega pronta', async () => {
+    let outubro: any;
+    const ia: ModeloIa = {
+      responder: async (instrucoes, _conversa, ferramentas) => {
+        outubro = await ferramentas?.consultarRelatorio({ periodo: 'mes', data: '2026-10-15' });
+        expect(instrucoes).toContain('"variacaoPct"');
+        const area = outubro.indicadores.areaHa;
+        return `Outubro teve ${String(area.valor).replace('.', ',')} ha (${area.variacaoPct}% contra o mês anterior).`;
+      },
+    };
+    const r = await (await montar(ia)).responder(ANA, null, 'Como foi outubro?', AGORA);
+    expect(outubro.indicadores.areaHa).toHaveProperty('diferenca');
+    expect(r.texto).toContain('Outubro teve');
+  });
+});
+
+describe('resposta em fluxo', () => {
+  it('o texto chega em pedaços, sem as sugestões, só depois de conferido, e a conversa guarda o texto inteiro', async () => {
+    const texto = 'Hoje foram **342 ha** no total.\n\n- Tudo dentro do esperado.';
+    const ia: ModeloIa = { responder: async () => `${texto}\nSUGESTOES: Quem parou? | E a semana?` };
+    const servico = await montar(ia);
+    const vistos: string[] = [];
     const r = await servico.responderEmFluxo(ANA, null, 'Como foi hoje?', (t) => vistos.push(t), AGORA);
-    expect(vistos.join('')).toBe('Hoje foram 12 ha no total.');
+    expect(vistos.join('')).toBe(texto);
     expect(vistos.length).toBeGreaterThan(1);
-    expect(r.texto).toBe('Hoje foram 12 ha no total.');
+    expect(r.texto).toBe(texto);
     expect(r.sugestoes).toEqual(['Quem parou?', 'E a semana?']);
-    expect((await servico.abrirConversa(ANA, r.conversaId)).mensagens.at(-1)?.texto).toBe('Hoje foram 12 ha no total.');
+    expect((await servico.abrirConversa(ANA, r.conversaId)).mensagens.at(-1)?.texto).toBe(texto);
   });
 
   it('com uma IA que não transmite, entrega a resposta de uma vez', async () => {

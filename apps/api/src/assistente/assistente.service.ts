@@ -9,7 +9,8 @@ import { RelatoriosService } from '../relatorios/relatorios.service.js';
 import { diaLocal } from '../shared/dia.js';
 import { TalhoesService } from '../talhoes/talhoes.service.js';
 import { ConversasRepository, type Dono } from './conversas.repository.js';
-import { CortaSugestoes, montarInstrucoes, separarSugestoes } from './instrucoes.js';
+import { comVariacoes, numerosSemFonte } from './conferencia.js';
+import { montarInstrucoes, separarSugestoes } from './instrucoes.js';
 import { IaIndisponivel, IaNaoConfigurada, MODELO_IA, type Ferramentas, type ModeloIa, type MotivoDaFalha } from './modelo-ia.js';
 
 /** Quantas mensagens anteriores vão para o modelo. O histórico inteiro continua guardado. */
@@ -37,6 +38,9 @@ function anotarFalha(erro: unknown, agora: Date) {
     .catch(() => undefined);
 }
 
+/** O que a pessoa vê quando a resposta do modelo traz número que o servidor não consegue confirmar, mesmo na segunda tentativa. */
+export const RESPOSTA_BARRADA = 'Não consegui confirmar nos dados da fazenda todos os números dessa resposta, então não vou mostrá-la. Pergunte de novo de um jeito mais direto: um período (um dia, um mês) e, se quiser, uma máquina.';
+
 const naoEncontrada = () => new NotFoundException({ codigo: 'CONVERSA_NAO_ENCONTRADA', mensagem: 'Essa conversa não existe mais.' });
 
 @Injectable()
@@ -56,44 +60,49 @@ export class AssistenteService {
    * quem pergunta não consegue inventar falas anteriores do assistente.
    */
   responder(dono: Dono, conversaId: string | null, texto: string, agora = new Date()): Promise<Resposta> {
-    return this.executar(dono, conversaId, texto, agora, (instrucoes, conversa, ferramentas) => this.ia.responder(instrucoes, conversa, ferramentas));
+    return this.executar(dono, conversaId, texto, agora);
   }
 
-  /** Igual a `responder`, mas `aoTrecho` recebe o texto aos poucos, sem as perguntas de continuação. */
-  responderEmFluxo(dono: Dono, conversaId: string | null, texto: string, aoTrecho: (trecho: string) => void, agora = new Date()): Promise<Resposta> {
-    return this.executar(dono, conversaId, texto, agora, async (instrucoes, conversa, ferramentas) => {
-      const corte = new CortaSugestoes();
-      const mostrar = (t: string) => t && aoTrecho(t);
-      if (!this.ia.transmitir) {
-        const bruto = await this.ia.responder(instrucoes, conversa, ferramentas);
-        mostrar(corte.empurrar(bruto));
-        mostrar(corte.terminar());
-        return bruto;
-      }
-      const bruto = await this.ia.transmitir(instrucoes, conversa, ferramentas, (t) => mostrar(corte.empurrar(t)));
-      mostrar(corte.terminar());
-      return bruto;
-    });
+  /**
+   * Igual a `responder`, mas `aoTrecho` recebe o texto em pedaços. O texto só começa a sair DEPOIS de conferido
+   * (todo número com fonte): nada que o modelo escreve chega ao app antes da conferência.
+   */
+  async responderEmFluxo(dono: Dono, conversaId: string | null, texto: string, aoTrecho: (trecho: string) => void, agora = new Date()): Promise<Resposta> {
+    const resposta = await this.executar(dono, conversaId, texto, agora);
+    // Em pedaços de linha, para a tela ir preenchendo em vez de mudar de uma vez.
+    for (const pedaco of resposta.texto.match(/[^\n]*\n?/g) ?? []) if (pedaco) aoTrecho(pedaco);
+    return resposta;
   }
 
-  private async executar(
-    dono: Dono,
-    conversaId: string | null,
-    texto: string,
-    agora: Date,
-    gerar: (instrucoes: string, conversa: Mensagem[], ferramentas: Ferramentas) => Promise<string>,
-  ): Promise<Resposta> {
+  private async executar(dono: Dono, conversaId: string | null, texto: string, agora: Date): Promise<Resposta> {
     // Só as últimas mensagens vão ao modelo, e só elas são lidas do banco.
     const anterior = conversaId ? await this.conversas.buscar(dono, conversaId, { limite: MEMORIA_DA_CONVERSA }) : null;
     if (conversaId && !anterior) throw naoEncontrada();
 
     const conversa: Mensagem[] = [...(anterior?.mensagens ?? []), { papel: 'usuario', texto }];
-    const instrucoes = montarInstrucoes(await this.retratoDaFazenda(dono.orgId, agora), agora);
+    const instrucoes = montarInstrucoes(comVariacoes(await this.retratoDaFazenda(dono.orgId, agora)), agora);
 
     let resposta: { texto: string; sugestoes: string[] };
     try {
-      resposta = separarSugestoes(await gerar(instrucoes, conversa, this.ferramentasDa(dono.orgId, agora)));
+      // Tudo que as consultas devolvem fica anotado: é contra isso (e o retrato) que os números da resposta são conferidos.
+      const consultas: string[] = [];
+      const ferramentas = this.ferramentasDa(dono.orgId, agora, (resultado) => consultas.push(JSON.stringify(resultado)));
+      const fontes = () => [instrucoes, ...consultas, ...conversa.filter((m) => m.papel === 'usuario').map((m) => m.texto)];
+
+      resposta = separarSugestoes(await this.ia.responder(instrucoes, conversa, ferramentas));
       if (!resposta.texto) throw new Error('Resposta vazia');
+      let semFonte = numerosSemFonte(resposta.texto, fontes());
+      if (semFonte.length > 0) {
+        // Uma segunda chance, dizendo exatamente quais números não têm fonte. A primeira resposta não é mostrada nem guardada.
+        const aviso = `[Conferência automática] A resposta acima NÃO foi mostrada: estes números não estão nos DADOS nem em nenhuma consulta: ${semFonte.slice(0, 12).join('; ')}. Responda de novo à minha última pergunta. Consulte o que faltar e use só números que vierem dos DADOS ou das consultas, escritos como vieram (pode arredondar). Não faça conta. O que não tiver, diga em uma frase que não tem. Não mencione esta conferência.`;
+        const segunda = separarSugestoes(await this.ia.responder(instrucoes, [...conversa, { papel: 'assistente', texto: resposta.texto }, { papel: 'usuario', texto: aviso }], ferramentas));
+        semFonte = segunda.texto ? numerosSemFonte(segunda.texto, fontes()) : semFonte;
+        if (segunda.texto && semFonte.length === 0) resposta = segunda;
+        else {
+          anotarFalha(new Error(`resposta barrada pela conferência; números sem fonte: ${semFonte.join('; ')}`), agora);
+          resposta = { texto: RESPOSTA_BARRADA, sugestoes: [] };
+        }
+      }
     } catch (erro) {
       // Nada é gravado quando a IA falha: "tentar de novo" não duplica a pergunta.
       if (erro instanceof IaNaoConfigurada) {
@@ -111,11 +120,17 @@ export class AssistenteService {
   }
 
   /** O que o modelo pode buscar sozinho. Sempre da organização de quem perguntou, nunca de outra. */
-  private ferramentasDa(orgId: string, agora: Date): Ferramentas {
+  private ferramentasDa(orgId: string, agora: Date, anotar: (resultado: unknown) => void = () => undefined): Ferramentas {
     const Pedido = z.object({ periodo: PeriodoSchema, data: DiaSchema.optional(), maquinas: z.array(z.string().min(1).max(100)).min(1).max(50).optional() });
     const PedidoDeHistorico = z.object({ meses: z.number().int().min(1).max(24).optional() });
     const PedidoDeAnalise = z.object({ maquina: z.string().min(1).max(100), de: DiaSchema, ate: DiaSchema.optional() });
-    return {
+    // Par { valor, anterior } sai com diferença e variação prontas; e todo resultado é anotado para a conferência.
+    const entregar = async (resultado: Promise<unknown>) => {
+      const pronto = comVariacoes(await resultado);
+      anotar(pronto);
+      return pronto;
+    };
+    const consultas: Required<Ferramentas> = {
       consultarRelatorio: async (pedido) => {
         const lido = Pedido.safeParse(pedido);
         if (!lido.success) return { erro: 'Pedido inválido: informe periodo (dia, semana ou mes) e, se quiser, data no formato AAAA-MM-DD e maquinas (lista de ids).' };
@@ -134,6 +149,11 @@ export class AssistenteService {
         // Os ids das medições não ajudam a responder e só gastam contexto.
         return { ...analise, grupos: analise.grupos.map((g) => ({ nome: g.nome, itens: g.itens.map(({ id: _id, ...item }) => item) })) };
       },
+    };
+    return {
+      consultarRelatorio: (pedido) => entregar(consultas.consultarRelatorio(pedido)),
+      consultarHistoricoMensal: (pedido) => entregar(consultas.consultarHistoricoMensal(pedido)),
+      consultarAnaliseDaMaquina: (pedido) => entregar(consultas.consultarAnaliseDaMaquina(pedido)),
     };
   }
 

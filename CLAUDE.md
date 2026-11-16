@@ -209,6 +209,15 @@ Backend (`apps/api/src`)
   detalhe do motor por estado (`motorPorEstado`, nulo sem leitura) e o `total` do período somado no servidor. As
   instruções mandam consultar ANTES de escrever, proíbem número que não veio dos DADOS ou de consulta da própria
   resposta (resposta anterior da conversa não é fonte; célula sem dado vira "—") e reduzem o "Corrigindo:" a uma frase.
+- Conferência dos números da IA (16/11, o Alisson: "ela nunca pode inventar NENHUM dado"): `assistente/conferencia.ts`.
+  `numerosSemFonte(resposta, fontes)` confere cada número da resposta contra o retrato, o resultado das consultas
+  daquela resposta e as perguntas do usuário (aceita arredondamento, duração "68h58" de minutos/horas, horário local
+  de um instante ISO; ignora inteiro até 31 sem unidade, ano e contagem de tempo). Com número sem fonte, o modelo
+  responde de novo uma vez, recebendo a lista; se repetir, o app recebe `RESPOSTA_BARRADA` e a falha vai ao log. O
+  modelo NÃO faz conta: `comVariacoes` põe `diferenca` e `variacaoPct` em todo par `{ valor, anterior }` do retrato e
+  das consultas. `responderEmFluxo` só solta o texto DEPOIS de conferido (em pedaços de linha); `ia.transmitir` não é
+  mais usado pelo serviço. Limite conhecido: a conferência garante que o número existe nos dados, não que ele foi
+  usado no lugar certo (um número real citado para a máquina errada passa).
 - Resposta da IA organizada (15/11): as instruções mandam começar pela frase com o número em **negrito** e, quando há
   várias partes, tabela (até 4 colunas), título `## ` e tópicos `- `; só essa marcação é permitida. No app,
   `features/assistente/formatar.ts` (`lerBlocos`, puro, aguenta resposta pela metade) e `components/TextoFormatado.tsx`
