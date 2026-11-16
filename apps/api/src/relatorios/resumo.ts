@@ -108,8 +108,11 @@ export function escreverResumo(dados: Dados): string {
   }
 
   if (!dia && dados.porMaquina.length > 1) {
-    const melhor = dados.porMaquina[0]!;
-    frases.push(`Quem mais fez área foi o ${melhor.nome}, com ${numero(melhor.areaHa)} ha.`);
+    // A lista vem por horas; quem mais fez área é outra conta. Sem área no período, o destaque é quem mais trabalhou.
+    const maisArea = [...dados.porMaquina].sort((x, y) => y.areaHa - x.areaHa)[0]!;
+    const maisHoras = [...dados.porMaquina].sort((x, y) => y.horas - x.horas)[0]!;
+    if (maisArea.areaHa > 0) frases.push(`Quem mais fez área foi o ${maisArea.nome}, com ${numero(maisArea.areaHa)} ha.`);
+    else if (maisHoras.horas > 0) frases.push(`Quem mais trabalhou foi o ${maisHoras.nome}, com ${numero(maisHoras.horas)} h de máquina.`);
   }
 
   if (dados.semSinal.length > 0) {
