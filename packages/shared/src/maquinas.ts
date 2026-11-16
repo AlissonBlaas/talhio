@@ -54,6 +54,11 @@ export const MaquinaSchema = z.object({
       trabalhandoH: z.number().nonnegative(),
       ociosoH: z.number().nonnegative(),
       transporteH: z.number().nonnegative(),
+      /**
+       * Motor ligado sem posição lida: o que falta para as três horas acima fecharem com `horasHoje`. O caminho só conta
+       * o tempo entre duas posições seguidas (até 5 min); quando a máquina manda posição espaçada, o resto cai aqui.
+       */
+      semPosicaoH: z.number().nonnegative().default(0),
       combustivelL: z.number().nonnegative().nullable(),
       /** Hectares cobertos hoje dentro de talhões com contorno, e fora de todos. A área do dia é a soma dos dois. */
       areaDentroHa: z.number().nonnegative().default(0),

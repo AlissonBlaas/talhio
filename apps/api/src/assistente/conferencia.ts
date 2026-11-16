@@ -356,6 +356,14 @@ export interface FontesDaResposta {
   textos: string[];
   /** A pergunta que está sendo respondida: de quem e de quando ela fala vale para a resposta. */
   pergunta: string;
+  /**
+   * O que veio antes na conversa (perguntas e respostas já mostradas). Pergunta de continuação ("e essas 5,8 h?") não
+   * repete a máquina nem o dia: quando nem a resposta nem a pergunta citam, vale de quem e de quando a conversa falava.
+   * Só serve para saber DE QUEM e DE QUANDO; número da conversa não vira fonte.
+   */
+  contexto?: string;
+  /** O que a pessoa escreveu agora (e na pergunta anterior): repetir um número que ela mesma disse é permitido, com ou sem unidade. */
+  ditoPelaPessoa?: string[];
   /** Hoje (AAAA-MM-DD), horário de Brasília. */
   hoje: string;
   /** Resultado de cada conta que o servidor fez nesta resposta (ferramenta `calcular`). */
@@ -393,7 +401,21 @@ export function conferirResposta(resposta: string, fontes: FontesDaResposta): st
   const livres = fontes.textos.join('\n');
   const numerosLivres = new Set<number>();
   for (const [escrito] of livres.matchAll(NUMERO)) numerosLivres.add(lerNumero(escrito).valor);
+  const ditos = new Set<number>();
+  for (const [escrito] of (fontes.ditoPelaPessoa ?? []).join('\n').matchAll(NUMERO)) ditos.add(lerNumero(escrito).valor);
   const horarios = horariosDe(`${JSON.stringify(fontes.dados)}\n${livres}`);
+  // "o trator 24", "a máquina 24": o jeito de falar de quem está no campo. Vale como citar a máquina cujo nome termina
+  // nesse número, se só uma termina assim.
+  const porNumero = new Map<string, string[]>();
+  for (const nome of padroes.keys()) {
+    const fim = nome.match(/(\d+)\s*$/)?.[1];
+    if (fim) porNumero.set(fim, [...(porNumero.get(fim) ?? []), nome]);
+  }
+  for (const [fim, nomes] of porNumero) {
+    if (nomes.length !== 1) continue;
+    const proprio = padroes.get(nomes[0]!)!;
+    padroes.set(nomes[0]!, new RegExp(`${proprio.source}|(?<![\\p{L}\\d])(?:trator|m[aá]quina|colheitadeira|pulverizador)\\s+(?:n[º°o.]?\\s*)?${fim}(?![\\p{L}\\d,.])`, 'iu'));
+  }
 
   const problemas: string[] = [];
   const recusar = (escrito: string, motivo: string) => {
@@ -406,12 +428,13 @@ export function conferirResposta(resposta: string, fontes: FontesDaResposta): st
     const proprio = pedaco.niveis[0] ?? '';
     const daFazenda = DA_FAZENDA.test(proprio);
     let citados: string[] = [];
-    for (const nivel of pedaco.niveis) {
+    const niveis = [...pedaco.niveis, fontes.contexto ?? ''];
+    for (const nivel of niveis) {
       citados = nivel ? nomesCitados(nivel, padroes) : [];
       if (citados.length > 0 || (nivel === proprio && daFazenda)) break;
     }
     let mencoes: Mencao[] = [];
-    for (const nivel of pedaco.niveis) {
+    for (const nivel of niveis) {
       mencoes = nivel ? mencoesDePeriodo(nivel, fontes.hoje) : [];
       if (mencoes.length > 0) break;
     }
@@ -480,7 +503,7 @@ export function conferirResposta(resposta: string, fontes: FontesDaResposta): st
         if (tempo === 'h') return f.tempo === 'min' ? igual(arredondar(f.valor / 60, casas), valor) : redondo(f);
         return redondo(f) || (f.tempo === 'min' && igual(arredondar(f.valor / 60, casas), valor));
       };
-      conferir(escrito, classe, bate, numerosLivres.has(valor) && !achada);
+      conferir(escrito, classe, bate, (numerosLivres.has(valor) && !achada) || ditos.has(valor));
     }
   }
   return problemas;

@@ -92,6 +92,7 @@ export function MaquinaScreen() {
               <LinhaDado rotulo="Trabalhando" valor={horasMinutos(maquina.usoHoje.trabalhandoH)} />
               <LinhaDado rotulo="Ocioso" valor={horasMinutos(maquina.usoHoje.ociosoH)} />
               <LinhaDado rotulo="Transporte" valor={horasMinutos(maquina.usoHoje.transporteH)} />
+              {maquina.usoHoje.semPosicaoH > 0 ? <LinhaDado rotulo="Ligado sem posição" valor={horasMinutos(maquina.usoHoje.semPosicaoH)} /> : null}
               <LinhaDado rotulo="Área dentro dos talhões" valor={hectares(maquina.usoHoje.areaDentroHa)} />
               <LinhaDado rotulo="Área fora dos talhões" valor={hectares(maquina.usoHoje.areaForaHa)} />
               <LinhaDado rotulo="Combustível gasto" valor={maquina.usoHoje.combustivelL === null ? '—' : `${numero(maquina.usoHoje.combustivelL)} L`} />

@@ -253,6 +253,16 @@ Backend (`apps/api/src`)
   (`useMaquinasForaDaTela` + `foraDaTela.ts`, conta pura). Usa `MapaBase.aoParar`, que avisa só quando a câmera PARA:
   é a única exceção à regra de não ouvir a câmera, e nunca acompanha o movimento. Envio manual pelo Xcode usa
   `ios.buildNumber` do `app.json` (subir na mão a cada envio; o EAS conta à parte).
+- Horas que fecham e IA que não recusa (16/11, depois da reunião com o Mário: 5,8 h de motor contra 1,9 + 0,4 pelo
+  caminho, e a IA respondendo "não vou mostrá-la"): `Maquina.usoHoje.semPosicaoH` = motor ligado sem posição lida
+  (`horasPorEstado` só conta intervalo de até 5 min entre posições). `MaquinasService.montar` fecha a conta:
+  `horasHoje` nunca é menor que trabalhando + ocioso + transporte, e a sobra é `semPosicaoH`; `atividadeNoDia` de hoje
+  usa o caminho em memória como piso das horas (o relatório acompanha). App mostra "Ligado sem posição". Na IA:
+  `RESPOSTA_BARRADA` NÃO existe mais. Se a segunda resposta também falha, `soOQueConfere` deixa só as linhas que
+  conferem; se não sobra nada, vai `SO_O_CONFIRMADO` + o resumo de hoje montado pelo servidor. A conferência ganhou
+  `contexto` (últimas 4 falas: pergunta de continuação herda a máquina e o período da conversa, só para DE QUEM/DE
+  QUANDO), `ditoPelaPessoa` (número que a pessoa escreveu nas 2 últimas perguntas pode ser repetido) e o apelido
+  "trator 24"/"máquina 24" para o nome que termina nesse número (se for único).
 - Resposta da IA organizada (15/11): as instruções mandam começar pela frase com o número em **negrito** e, quando há
   várias partes, tabela (até 4 colunas), título `## ` e tópicos `- `; só essa marcação é permitida. No app,
   `features/assistente/formatar.ts` (`lerBlocos`, puro, aguenta resposta pela metade) e `components/TextoFormatado.tsx`

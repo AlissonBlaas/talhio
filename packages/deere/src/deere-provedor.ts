@@ -709,6 +709,12 @@ export class DeereProvedor implements ProvedorMaquinas {
       ate(this.horasLigadoNoDia(orgId, maquinaId, dia), 1500, 0),
     ]);
     const atividade: AtividadeDiariaExterna = { ...estimado, horas: Math.max(estimado.horas, ligado) };
+    // Hoje: a leitura de horas da Deere chega atrasada (ou não chega a tempo). O caminho já lido, em memória, é o piso:
+    // a máquina não pode ter ficado ligada menos tempo do que o que ela andou e ficou parada com sinal.
+    if (dia === hojeNaFazenda()) {
+      const visto = horasPorEstado(this.caminhos.get(`${orgId}/${maquinaId}`)?.pontos ?? []);
+      atividade.horas = Math.max(atividade.horas, Math.round((visto.trabalhandoH + visto.ociosoH + visto.transporteH) * 10) / 10);
+    }
     // A estimativa acima só espera 400 ms pela Deere. A área das operações de campo já lida e guardada no banco
     // (mês a mês, inclusive meses antigos) entra quando ela não chegou a tempo ou a memória ainda está vazia.
     if (atividade.areaHa === 0 && dia !== hojeNaFazenda()) {

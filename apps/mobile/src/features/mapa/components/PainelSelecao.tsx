@@ -70,6 +70,9 @@ export function PainelSelecao({ selecao, aoFechar, aoVerMaquina, aoPlanejar, aoL
               <Dado rotulo="Transporte" valor={horasMinutos(selecao.maquina.usoHoje.transporteH)} />
             </View>
           ) : null}
+          {selecao.maquina.usoHoje && selecao.maquina.usoHoje.semPosicaoH > 0 ? (
+            <Text style={styles.linhaInfo}>Mais {horasMinutos(selecao.maquina.usoHoje.semPosicaoH)} de motor ligado sem posição lida.</Text>
+          ) : null}
           {selecao.maquina.usoHoje && selecao.maquina.usoHoje.porTalhao.length > 0 ? (
             <Text style={styles.linhaInfo} numberOfLines={2}>
               Hoje: {selecao.maquina.usoHoje.porTalhao.slice(0, 3).map((t) => `${horasMinutos(t.andandoH + t.paradoH)} ${t.talhaoId ? `em ${siglaTalhao(t.nome)}` : 'fora dos talhões'}`).join(' · ')}

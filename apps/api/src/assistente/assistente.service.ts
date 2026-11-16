@@ -42,7 +42,29 @@ function anotarFalha(erro: unknown, agora: Date) {
 const PedidoDeConta = z.object({ expressao: z.string().min(1).max(300), descricao: z.string().max(200).optional().default(''), unidade: z.string().max(12).optional() });
 
 /** O que a pessoa vê quando a resposta do modelo traz número que o servidor não consegue confirmar, mesmo na segunda tentativa. */
-export const RESPOSTA_BARRADA = 'Não consegui confirmar nos dados da fazenda todos os números dessa resposta, então não vou mostrá-la. Pergunte de novo de um jeito mais direto: um período (um dia, um mês) e, se quiser, uma máquina.';
+/** Abre a resposta de reserva: quando nada do que o modelo escreveu conferiu, vai o resumo do dia, que o servidor monta. */
+export const SO_O_CONFIRMADO = 'O que está confirmado nos dados de hoje:';
+
+/**
+ * Fica só com as linhas que conferem. A resposta nunca é trocada por um "não vou mostrar": o que tem fonte aparece,
+ * a linha com número sem fonte sai. Título que ficou sem nada embaixo e tabela que ficou sem linhas também saem.
+ */
+export function soOQueConfere(texto: string, conferir: (texto: string) => string[]): string {
+  const aceitas: string[] = [];
+  for (const linha of texto.split('\n')) {
+    if (conferir([...aceitas, linha].join('\n')).length === 0) aceitas.push(linha);
+  }
+  const ehTitulo = (l: string) => l.trim().startsWith('## ');
+  const ehMoldura = (l: string) => /^\s*\|/.test(l) && !/\d/.test(l.replace(/\*\*/g, ''));
+  const limpas = aceitas.filter((linha, i) => {
+    const proxima = aceitas.slice(i + 1).find((l) => l.trim() !== '');
+    if (ehTitulo(linha)) return proxima !== undefined && !ehTitulo(proxima);
+    return true;
+  });
+  // Tabela só com cabeçalho e separador (todas as linhas de dados caíram) não diz nada.
+  const comDados = limpas.some((l) => /^\s*\|/.test(l) && !ehMoldura(l));
+  return (comDados ? limpas : limpas.filter((l) => !/^\s*\|/.test(l))).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
 
 /**
  * Deixa a resposta sair para o app linha a linha, e só linha conferida. Recebe o texto como o modelo escreve; a cada
@@ -148,8 +170,10 @@ export class AssistenteService {
       const ferramentas = this.ferramentasDa(dono.orgId, agora, (resultado) => consultas.push(resultado), fazerConta);
       // As regras (sem os DADOS) e o que a pessoa escreveu: ali basta o número existir. Nos dados, ele tem que estar no lugar certo.
       const regras = instrucoes.slice(0, instrucoes.indexOf(MARCA_DOS_DADOS));
+      // Pergunta de continuação não repete a máquina nem o dia: o que a conversa vinha dizendo serve de contexto.
+      const contexto = (anterior?.mensagens ?? []).slice(-4).map((m) => m.texto).join('\n');
       const conferir = (escrito: string) =>
-        conferirResposta(escrito, { dados: [retrato, ...consultas], textos: [regras, ...perguntas], pergunta: texto, hoje: diaLocal(agora), calculos });
+        conferirResposta(escrito, { dados: [retrato, ...consultas], textos: [regras, ...perguntas], pergunta: texto, contexto, ditoPelaPessoa: perguntas.slice(-2), hoje: diaLocal(agora), calculos });
 
       // Em fluxo, cada linha completa é conferida e sai na hora; a que não confere fecha a porta.
       const porta = aoTrecho ? new PortaDeLinhas(conferir, aoTrecho) : null;
@@ -170,8 +194,11 @@ export class AssistenteService {
         semFonte = segunda.texto ? conferir(segunda.texto) : semFonte;
         if (segunda.texto && semFonte.length === 0) resposta = segunda;
         else {
-          anotarFalha(new Error(`resposta barrada pela conferência; números sem fonte: ${semFonte.join('; ')}`), agora);
-          resposta = { texto: RESPOSTA_BARRADA, sugestoes: [] };
+          anotarFalha(new Error(`resposta cortada pela conferência; números sem fonte: ${semFonte.join('; ')}`), agora);
+          // Nunca devolve "não vou mostrar": fica o que conferiu (da segunda resposta ou, se dela não sobrou nada, da
+          // primeira). Se nenhuma linha das duas tem fonte, vai o resumo de hoje, que o servidor monta dos mesmos dados.
+          const sobra = [segunda.texto, resposta.texto].map((t) => (t ? soOQueConfere(t, conferir) : '')).find((t) => t.replace(/[^\p{L}\d]/gu, '').length >= 12);
+          resposta = { texto: sobra ?? `${SO_O_CONFIRMADO} ${retrato.relatorioDeHoje.resumo}`, sugestoes: sobra ? segunda.sugestoes : [] };
         }
       }
       // O que ainda não saiu (o fim da resposta, ou ela inteira quando não houve fluxo). Se parte de uma resposta

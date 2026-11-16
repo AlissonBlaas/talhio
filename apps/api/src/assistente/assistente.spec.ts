@@ -16,7 +16,7 @@ import { RelatoriosService } from '../relatorios/relatorios.service.js';
 import { EscalaRepository } from '../escala/escala.repository.js';
 import { TalhoesRepository } from '../talhoes/talhoes.repository.js';
 import { TalhoesService } from '../talhoes/talhoes.service.js';
-import { AssistenteService, RESPOSTA_BARRADA } from './assistente.service.js';
+import { AssistenteService, SO_O_CONFIRMADO } from './assistente.service.js';
 import { ConversasRepository } from './conversas.repository.js';
 import { CortaSugestoes, separarSugestoes } from './instrucoes.js';
 import { IaDesligada, IaIndisponivel, MODELO_IA, type ModeloIa } from './modelo-ia.js';
@@ -305,7 +305,7 @@ describe('conferência dos números', () => {
     };
     const r = await (await montar(ia)).responder(ANA, null, 'Quanto cada máquina trabalhou?', AGORA);
     expect(tentativas).toHaveLength(2);
-    expect(r.texto).toBe(RESPOSTA_BARRADA);
+    expect(r.texto.startsWith(SO_O_CONFIRMADO)).toBe(true);
   });
 
   it('se a segunda resposta também inventa, nenhuma é mostrada', async () => {
@@ -313,8 +313,8 @@ describe('conferência dos números', () => {
     const servico = await montar(ia);
     const vistos: string[] = [];
     const r = await servico.responderEmFluxo(ANA, null, 'Quanto fizemos no ano?', (t) => vistos.push(t), AGORA);
-    expect(r.texto).toBe(RESPOSTA_BARRADA);
-    expect(vistos.join('')).toBe(RESPOSTA_BARRADA);
+    expect(r.texto.startsWith(SO_O_CONFIRMADO)).toBe(true);
+    expect(vistos.join('')).toBe(r.texto);
     expect(vistos.join('')).not.toContain('17.485');
   });
 
@@ -361,7 +361,8 @@ describe('contas da IA', () => {
   it('conta de cabeça (sem a ferramenta) continua barrada', async () => {
     const ia: ModeloIa = { responder: async () => 'Somando tudo, a fazenda fez 123.456 ha.' };
     const r = await (await montar(ia)).responder(ANA, null, 'Quanto no total?', AGORA);
-    expect(r.texto).toBe(RESPOSTA_BARRADA);
+    expect(r.texto.startsWith(SO_O_CONFIRMADO)).toBe(true);
+    expect(r.texto).not.toContain('123.456');
   });
 });
 
@@ -429,5 +430,14 @@ describe('resposta em fluxo', () => {
     const corte = new CortaSugestoes();
     const saida = 'Olá, tudo certo.SUGESTOES: a | b'.split('').map((c) => corte.empurrar(c)).join('') + corte.terminar();
     expect(saida).toBe('Olá, tudo certo.');
+  });
+});
+
+describe('soOQueConfere', () => {
+  it('tira só a linha sem fonte e o título que ficou vazio', async () => {
+    const { soOQueConfere } = await import('./assistente.service.js');
+    const conferir = (t: string) => (t.includes('999') ? ['999'] : []);
+    expect(soOQueConfere('Certo: 10 ha.\n\n## Detalhe\nErrado: 999 ha.\n\n## Outro\nCerto de novo.', conferir)).toBe('Certo: 10 ha.\n\n## Outro\nCerto de novo.');
+    expect(soOQueConfere('| Máquina | Horas |\n|---|---|\n| A | 999 |', conferir)).toBe('');
   });
 });

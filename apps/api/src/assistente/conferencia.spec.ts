@@ -139,3 +139,24 @@ describe('comVariacoes', () => {
     expect(saida.nome).toBe('x');
   });
 });
+
+describe('conversa de continuação e jeito de falar do campo', () => {
+  const dados = [{ maquinas: [{ nome: '8270R - 24', horasHoje: 5.8, usoHoje: { trabalhandoH: 1.9, ociosoH: 0.4, transporteH: 0, semPosicaoH: 3.5 } }, { nome: '8270R - 22', horasHoje: 2.1 }] }];
+  const base = { dados, textos: [], hoje: '2026-11-16' };
+
+  it('"o trator 24" cita a máquina cujo nome termina em 24', () => {
+    expect(conferirResposta('O trator 24 ficou 5,8 h ligado hoje: 1,9 h trabalhando, 0,4 h ocioso e 3,5 h sem posição.', { ...base, pergunta: 'E o trator 24?' })).toEqual([]);
+    expect(conferirResposta('O trator 22 ficou 5,8 h ligado hoje.', { ...base, pergunta: 'E o trator 22?' })).not.toEqual([]);
+  });
+
+  it('pergunta de continuação vale para a máquina de que a conversa falava', () => {
+    const contexto = 'Como foi o trator 24 hoje?\nO 8270R - 24 ficou 5,8 h ligado.';
+    expect(conferirResposta('São 5,8 h de motor ligado, com 3,5 h sem posição.', { ...base, pergunta: 'Esses dados de horas, qual a diferença?', contexto })).toEqual([]);
+    expect(conferirResposta('São 5,8 h de motor ligado.', { ...base, pergunta: 'Esses dados de horas, qual a diferença?' })).not.toEqual([]);
+  });
+
+  it('repetir o número que a pessoa escreveu é permitido; outro número continua barrado', () => {
+    expect(conferirResposta('Não encontrei 7,3 L nos dados.', { ...base, pergunta: 'E os 7,3 L?', ditoPelaPessoa: ['E os 7,3 L?'] })).toEqual([]);
+    expect(conferirResposta('Foram 9,9 L.', { ...base, pergunta: 'E os 7,3 L?', ditoPelaPessoa: ['E os 7,3 L?'] })).not.toEqual([]);
+  });
+});

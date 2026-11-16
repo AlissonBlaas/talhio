@@ -151,7 +151,11 @@ export class MaquinasService {
     ]);
     // Depois da posição: o uso do dia só é lido para quem deu sinal hoje.
     const uso = (await this.provedor.usoDeHoje?.(orgId, externa.id).catch(() => null)) ?? null;
-    const usoHoje = uso ? { ...uso, porTalhao: this.porTalhao(orgId, externa.id, talhoes) } : null;
+    // As horas por estado (pelo caminho) e as horas de motor ligado vêm de leituras diferentes. Aqui a conta fecha:
+    // o total nunca é menor que a soma dos estados, e o que sobra do total aparece como "sem posição".
+    const vistoH = uso ? Math.round((uso.trabalhandoH + uso.ociosoH + uso.transporteH) * 10) / 10 : 0;
+    const horasHoje = Math.max(atividade.horas, vistoH);
+    const usoHoje = uso ? { ...uso, semPosicaoH: Math.round((horasHoje - vistoH) * 10) / 10, porTalhao: this.porTalhao(orgId, externa.id, talhoes) } : null;
     const status = calcularStatus(externa, posicao, agora);
     const ponto = posicao ? { lat: posicao.lat, lng: posicao.lng } : null;
     const talhao = ponto ? talhoes.find((t) => pontoNoPoligono(ponto, t.contorno)) : undefined;
@@ -167,7 +171,7 @@ export class MaquinasService {
       ultimoSinal: posicao?.registradaEm ?? new Date(0).toISOString(),
       paradaDesde: status === 'parada' ? (posicao?.paradaDesde ?? null) : null,
       posicao: ponto,
-      horasHoje: atividade.horas,
+      horasHoje,
       areaHojeHa: atividade.areaHa,
       velocidadeKmH: posicao ? posicao.velocidadeKmH : null,
       motorLigado: status !== 'sem-sinal' && (posicao?.motorLigado ?? false),
