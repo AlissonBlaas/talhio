@@ -14,3 +14,4 @@ android
 dados-fazenda
 # Banco embutido de desenvolvimento
 .dados
+_to_delete/
