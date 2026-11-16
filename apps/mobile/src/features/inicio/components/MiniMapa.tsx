@@ -26,7 +26,7 @@ export const MiniMapa = memo(function MiniMapa() {
       <View pointerEvents="none" style={styles.legenda}>
         <Item cor={cores.folha} rotulo="Trabalhando" />
         <Item cor={cores.parada} rotulo="Parada" />
-        <Item rotulo="Sem sinal" />
+        <Item cor={cores.semSinalNoMapa} rotulo="Sem sinal" />
       </View>
     </View>
   );

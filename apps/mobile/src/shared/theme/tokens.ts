@@ -58,6 +58,8 @@ export const cores = {
   aviso: '#C2410C',
 
   mapaFundo: '#2B3A28',
+  /** Máquina sem sinal no mapa: cinza que não disputa atenção com quem está trabalhando. */
+  semSinalNoMapa: '#8C9189',
   talhaoContorno: '#E040FB',
   talhaoPlantio: 'rgba(240,138,60,0.55)',
   talhaoPulverizacao: 'rgba(90,169,230,0.5)',
