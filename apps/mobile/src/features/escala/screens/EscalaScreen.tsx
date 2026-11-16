@@ -1,3 +1,4 @@
+import type { EscalaItem } from '@talhio/shared';
 import { useState } from 'react';
 import { Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -11,20 +12,27 @@ import { useEnviarAoGrupo } from '@/features/whatsapp';
 import { cores, fontes, MARGEM_TELA } from '@/shared/theme/tokens';
 
 import { EditorDaEscala } from '../components/EditorDaEscala';
-import { LinhaDaEscala } from '../components/LinhaDaEscala';
+import { MaquinaNaEscala } from '../components/MaquinaNaEscala';
 import { useEscala } from '../hooks/useEscala';
 import { useMudarEscala } from '../hooks/useMudarEscala';
-import { diaPorExtenso, itensComOperador, textoDaEscala } from '../textos';
+import { diaPorExtenso, itensComOperador, porMaquina, textoDaEscala, turnoLivre } from '../textos';
 
 export function EscalaScreen() {
   const alturaBarra = useAlturaDaBarra();
   const { escala, carregando, erro, atualizando, atualizar } = useEscala();
   const { talhoes } = useTalhoes();
   const mudar = useMudarEscala();
-  const [editandoId, setEditandoId] = useState<string | null>(null);
+  // O que está aberto para editar: a linha de um turno que existe, ou um turno NOVO para a máquina.
+  const [editandoId, setEditandoId] = useState<{ maquinaId: string; turno: EscalaItem['turno']; novo: boolean } | null>(null);
   const envio = useEnviarAoGrupo();
 
-  const editando = escala?.itens.find((i) => i.maquinaId === editandoId) ?? null;
+  const maquinas = escala ? porMaquina(escala) : [];
+  const daMaquina = maquinas.find((m) => m.maquinaId === editandoId?.maquinaId) ?? null;
+  const existente = daMaquina?.linhas.find((l) => l.turno === editandoId?.turno) ?? null;
+  // Turno novo: começa em branco, com a tarefa e o talhão do turno que a máquina já tem (o mais comum é só trocar o operador).
+  const modelo = daMaquina?.linhas[0] ?? null;
+  const editando: EscalaItem | null = !editandoId ? null : editandoId.novo ? (modelo ? { ...modelo, operador: null, turno: editandoId.turno, definida: false, enviadaEm: null } : null) : existente;
+  const outrosTurnos = (daMaquina?.linhas ?? []).filter((l) => l.definida && (editandoId?.novo || l.turno !== editandoId?.turno)).map((l) => l.turno);
   const comOperador = escala ? itensComOperador(escala) : [];
   const sugeridas = comOperador.filter((i) => !i.definida);
   const enviada = comOperador.length > 0 && comOperador.every((i) => i.enviadaEm);
@@ -46,7 +54,7 @@ export function EscalaScreen() {
         contentContainerStyle={[styles.conteudo, { paddingBottom: alturaBarra + 16 }]}
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={atualizando} onRefresh={atualizar} tintColor={cores.milho} />}>
-        <CabecalhoTela titulo="Escala de hoje" subtitulo={escala ? `${diaPorExtenso(escala.dia)} · quem vai em qual máquina e talhão` : 'Quem vai em qual máquina e talhão'} />
+        <CabecalhoTela titulo="Escala de hoje" subtitulo={escala ? `${diaPorExtenso(escala.dia)} · quem vai em qual máquina, por turno` : 'Quem vai em qual máquina, por turno'} />
 
         {carregando ? (
           <View style={styles.espera}>
@@ -59,9 +67,13 @@ export function EscalaScreen() {
         ) : (
           <View style={styles.corpo}>
             <View style={styles.lista}>
-              {escala.itens.map((item, i) => (
-                <Surgir key={item.maquinaId} ordem={i}>
-                  <LinhaDaEscala item={item} aoTocar={() => setEditandoId(item.maquinaId)} />
+              {maquinas.map((maquina, i) => (
+                <Surgir key={maquina.maquinaId} ordem={i}>
+                  <MaquinaNaEscala
+                    maquina={maquina}
+                    aoTocar={(item) => setEditandoId({ maquinaId: item.maquinaId, turno: item.turno, novo: false })}
+                    aoAdicionar={() => setEditandoId({ maquinaId: maquina.maquinaId, turno: turnoLivre(maquina.linhas) ?? 'manha', novo: true })}
+                  />
                 </Surgir>
               ))}
             </View>
@@ -70,7 +82,7 @@ export function EscalaScreen() {
               <View style={styles.avisoIcone}>
                 <Icone nome="enviar" cor={cores.textoSobreSuave} tamanho={18} espessura={2} />
               </View>
-              <Text style={styles.avisoTexto}>Toque em uma máquina para mudar. A escala vai em uma mensagem só, pronta para o grupo da equipe no WhatsApp.</Text>
+              <Text style={styles.avisoTexto}>Toque em um turno para mudar o operador, ou em "Adicionar turno" para pôr outra pessoa na mesma máquina. A escala vai em uma mensagem só, pronta para o grupo da equipe no WhatsApp.</Text>
             </View>
 
             {sugeridas.length > 0 ? (
@@ -99,17 +111,19 @@ export function EscalaScreen() {
       </ScrollView>
 
       <Modal visible={editando !== null} animationType="slide" presentationStyle="pageSheet" onRequestClose={fechar}>
-        {editando ? (
+        {editando && editandoId ? (
           <EditorDaEscala
-            // Cada máquina abre com os próprios dados.
-            key={editando.maquinaId}
+            // Cada máquina e turno abre com os próprios dados.
+            key={`${editando.maquinaId}/${editandoId.turno}/${editandoId.novo}`}
             item={editando}
             operadores={operadores}
             talhoes={talhoes}
+            outrosTurnos={outrosTurnos}
             salvando={mudar.salvando}
             erro={mudar.erro?.message ?? null}
-            aoSalvar={(dados) => mudar.definir({ maquinaId: editando.maquinaId, dados }, { onSuccess: fechar })}
-            aoTirar={() => mudar.tirar(editando.maquinaId, { onSuccess: fechar })}
+            // Editando uma linha gravada e trocando o turno: a linha antiga sai (`substitui`).
+            aoSalvar={(dados) => mudar.definir({ maquinaId: editando.maquinaId, dados: { ...dados, substitui: !editandoId.novo && editando.definida ? editandoId.turno : undefined } }, { onSuccess: fechar })}
+            aoTirar={() => mudar.tirar({ maquinaId: editando.maquinaId, turno: editandoId.turno }, { onSuccess: fechar })}
             aoFechar={fechar}
           />
         ) : null}

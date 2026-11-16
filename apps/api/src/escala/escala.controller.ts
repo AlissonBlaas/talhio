@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Post, Query } from '@nestjs/common';
-import { DefinirEscalaSchema, EnvioDaEscalaSchema, PedidoDeEscalaSchema, type Escala } from '@talhio/shared';
+import { DefinirEscalaSchema, EnvioDaEscalaSchema, PedidoDeEscalaSchema, PedidoDeTirarSchema, type Escala } from '@talhio/shared';
 import type { z } from 'zod';
 import { OrgAtual, SoAdmin } from '../auth/auth.decorators.js';
 import { IdSchema, ZodPipe } from '../shared/zod.pipe.js';
@@ -31,8 +31,8 @@ export class EscalaController {
 
   @SoAdmin()
   @Delete('maquinas/:maquinaId')
-  tirar(@OrgAtual() orgId: string, @Param('maquinaId', new ZodPipe(IdSchema)) maquinaId: string, @Query(new ZodPipe(PedidoDeEscalaSchema)) pedido: Pedido): Promise<Escala> {
-    return this.escala.tirar(orgId, maquinaId, undefined, pedido.dia);
+  tirar(@OrgAtual() orgId: string, @Param('maquinaId', new ZodPipe(IdSchema)) maquinaId: string, @Query(new ZodPipe(PedidoDeTirarSchema)) pedido: z.output<typeof PedidoDeTirarSchema>): Promise<Escala> {
+    return this.escala.tirar(orgId, maquinaId, undefined, pedido.dia, pedido.turno);
   }
 
   /** Confirma de uma vez a escala sugerida do dia (a repetida de ontem ou o operador que a máquina informa). */

@@ -1,4 +1,4 @@
-import type { DefinirEscala, Escala } from '@talhio/shared';
+import type { DefinirEscala, Escala, Turno } from '@talhio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { escalaApi } from '../api/escalaApi';
@@ -23,7 +23,7 @@ export function useMudarEscala(dia?: string) {
     void queryClient.invalidateQueries({ predicate: (q) => q.queryKey[0] !== escalaKeys.todas[0] });
   };
   const definir = useMutation({ mutationFn: (item: ItemParaGravar) => escalaApi.definir({ ...item, dia }), onSuccess: aoMudar });
-  const tirar = useMutation({ mutationFn: (maquinaId: string) => escalaApi.tirar({ maquinaId, dia }), onSuccess: aoMudar });
+  const tirar = useMutation({ mutationFn: (linha: { maquinaId: string; turno?: Turno }) => escalaApi.tirar({ ...linha, dia }), onSuccess: aoMudar });
   const confirmar = useMutation({ mutationFn: () => escalaApi.confirmar(dia), onSuccess: aoMudar });
   const marcarEnviada = useMutation({ mutationFn: (maquinaIds?: string[]) => escalaApi.marcarEnviada({ dia, maquinaIds }), onSuccess: guardar });
   // Várias máquinas de uma vez (a escala de um plano): uma por uma, na ordem; a última resposta é a escala final.

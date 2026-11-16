@@ -270,6 +270,17 @@ Backend (`apps/api/src`)
   substituir (talhão de mesmo nome troca o contorno e mantém o id; linhas ficam). KML sem polígono: `SEM_TALHOES`.
   A pasta Gen4 continua substituindo tudo. Quando `semPosicaoH` passa de 1 h, a IA e o app dizem que vale conferir
   com o operador.
+- Escala por turno (16/11, o Alisson: "não deveria ser por turno?" e "mostrar que ele está operando, parado ou inativo"):
+  a tabela `escalas` é única por org + dia + máquina + TURNO (migração 0024). A mesma máquina pode ter um operador de
+  manhã, outro à tarde e outro à noite; "dia todo" é uma linha só e não convive com turno separado (gravar um tira o
+  outro, em `EscalaRepository.definir`, numa transação). `DefinirEscalaSchema.substitui` = turno que a linha tinha
+  antes de ser editada (a antiga sai); `DELETE /v1/escala/maquinas/:id?turno=` tira só aquele turno. `GET /v1/escala`
+  devolve uma linha por máquina e turno, na ordem dia todo, manhã, tarde, noite, cada uma com `maquinaStatus` e
+  `maquinaTipo`; sem nada gravado, repete TODOS os turnos de ontem como sugestão. `Maquina.operador` = quem está no
+  turno de agora (`turnoDaHora`: manhã 5h–12h, tarde 12h–18h, noite no resto) ou no dia todo; sem isso, o primeiro
+  turno do dia. No app, `MaquinaNaEscala` (substitui `LinhaDaEscala`): cartão por máquina com o selo Operando /
+  Parada / Inativa, uma linha por turno e "Adicionar turno"; quem está operando vem primeiro (`porMaquina`). O texto do
+  WhatsApp lista os turnos de cada máquina. App novo com API antiga mostra tudo como "Inativa" (o campo não vem).
 - Resposta da IA organizada (15/11): as instruções mandam começar pela frase com o número em **negrito** e, quando há
   várias partes, tabela (até 4 colunas), título `## ` e tópicos `- `; só essa marcação é permitida. No app,
   `features/assistente/formatar.ts` (`lerBlocos`, puro, aguenta resposta pela metade) e `components/TextoFormatado.tsx`

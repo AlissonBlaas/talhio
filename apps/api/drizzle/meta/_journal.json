@@ -169,6 +169,13 @@
       "when": 1794838812519,
       "tag": "0023_amused_captain_stacy",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1794865468558,
+      "tag": "0024_massive_harrier",
+      "breakpoints": true
     }
   ]
 }

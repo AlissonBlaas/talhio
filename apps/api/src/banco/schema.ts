@@ -125,7 +125,8 @@ export const escalas = pgTable(
     enviadaEm: timestamp('enviada_em', { withTimezone: true }),
     criadoEm: criadoEm(),
   },
-  (t) => [uniqueIndex('escalas_org_dia_maquina_idx').on(t.orgId, t.dia, t.maquinaId)],
+  // Uma linha por máquina e TURNO: a mesma máquina pode ter um operador de manhã e outro à tarde.
+  (t) => [uniqueIndex('escalas_org_dia_maquina_turno_idx').on(t.orgId, t.dia, t.maquinaId, t.turno)],
 );
 
 /** Planos de trabalho montados no app. O envio ao monitor depende da John Deere (Work Plans). */

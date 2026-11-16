@@ -1,4 +1,4 @@
-import type { DefinirEscala, EscalaItem, Talhao } from '@talhio/shared';
+import type { DefinirEscala, EscalaItem, Talhao, Turno } from '@talhio/shared';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -15,6 +15,8 @@ type Props = {
   /** Nomes já usados na escala de hoje, como atalho. */
   operadores: string[];
   talhoes: Talhao[];
+  /** Os turnos que esta máquina já tem gravados, fora o que está sendo editado: para avisar o que o novo vai tirar. */
+  outrosTurnos: Turno[];
   salvando: boolean;
   erro: string | null;
   aoSalvar: (dados: DefinirEscala) => void;
@@ -23,10 +25,19 @@ type Props = {
 };
 
 /** Folha para escolher quem vai em uma máquina, o que faz, onde e em que turno. */
-export function EditorDaEscala({ item, operadores, talhoes, salvando, erro, aoSalvar, aoTirar, aoFechar }: Props) {
+export function EditorDaEscala({ item, operadores, talhoes, outrosTurnos, salvando, erro, aoSalvar, aoTirar, aoFechar }: Props) {
   const { bottom } = useSafeAreaInsets();
   const form = useFormularioDaEscala(item);
   const talhao = talhoes.find((t) => t.id === form.talhaoId) ?? null;
+  // "Dia todo" e turno separado não convivem na mesma máquina: quem salva precisa saber o que sai.
+  const avisoDoTurno =
+    form.turno === 'dia-todo' && outrosTurnos.some((t) => t !== 'dia-todo')
+      ? 'Dia todo substitui os outros turnos desta máquina.'
+      : form.turno !== 'dia-todo' && outrosTurnos.includes('dia-todo')
+        ? 'Ao salvar, o "dia todo" desta máquina sai e ela passa a ter turnos separados.'
+        : form.turno !== 'dia-todo' && outrosTurnos.includes(form.turno)
+          ? 'Esta máquina já tem alguém nesse turno: salvar troca o operador.'
+          : null;
   const salvar = () => {
     const dados = form.conferir();
     if (dados) aoSalvar(dados);
@@ -94,6 +105,7 @@ export function EditorDaEscala({ item, operadores, talhoes, salvando, erro, aoSa
         <View style={styles.campo}>
           <Text style={styles.rotulo}>Turno</Text>
           <Opcoes opcoes={TURNOS} valor={form.turno} aoEscolher={form.setTurno} />
+          {avisoDoTurno ? <Text style={styles.avisoDoTurno}>{avisoDoTurno}</Text> : null}
         </View>
 
         {erro ? (
@@ -107,7 +119,7 @@ export function EditorDaEscala({ item, operadores, talhoes, salvando, erro, aoSa
         </Pressable>
         {item.definida ? (
           <Pressable accessibilityRole="button" disabled={salvando} onPress={aoTirar} style={styles.tirar}>
-            <Text style={styles.tirarTexto}>Tirar da escala de hoje</Text>
+            <Text style={styles.tirarTexto}>{outrosTurnos.length > 0 ? 'Tirar este turno' : 'Tirar da escala de hoje'}</Text>
           </Pressable>
         ) : null}
       </ScrollView>
@@ -127,6 +139,7 @@ const styles = StyleSheet.create({
   rotulo: { fontFamily: fontes.medio, fontSize: 13, lineHeight: 16, color: cores.textoMedio },
   entrada: { height: 48, borderRadius: 12, borderWidth: 1, borderColor: cores.campoBorda, backgroundColor: cores.campoFundo, paddingHorizontal: 12, fontFamily: fontes.medio, fontSize: 15, color: cores.texto },
   entradaErro: { borderColor: cores.erroBorda },
+  avisoDoTurno: { fontFamily: fontes.regular, fontSize: 13, lineHeight: 18, color: cores.alerta },
   erroCampo: { fontFamily: fontes.regular, fontSize: 12, lineHeight: 15, color: cores.perigo },
   erro: { fontFamily: fontes.regular, fontSize: 13, lineHeight: 18, color: cores.perigoTexto, backgroundColor: cores.perigoFundo, borderWidth: 1, borderColor: cores.perigoBorda, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 14, overflow: 'hidden' },
   botao: { height: 52, borderRadius: 16, backgroundColor: cores.primario, alignItems: 'center', justifyContent: 'center' },

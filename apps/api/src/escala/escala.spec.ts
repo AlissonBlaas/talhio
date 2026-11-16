@@ -113,4 +113,38 @@ describe('EscalaService', () => {
     await service.tirar(ORG, 'm-8r410', AGORA);
     expect((await service.deHoje(ORG, AGORA)).itens.find((i) => i.maquinaId === 'm-8r410')).toMatchObject({ operador: 'João', definida: false });
   });
+
+  describe('por turno', () => {
+    const DIA = '2026-11-20';
+    const daMaquina = async (id: string) => (await service.deHoje(ORG, AGORA, DIA)).itens.filter((i) => i.maquinaId === id);
+
+    it('a mesma máquina tem um operador por turno, e cada linha traz como a máquina está agora', async () => {
+      await service.definir(ORG, 'm-8r410', { operador: 'Ana', tarefa: 'Plantio', talhaoId: null, turno: 'tarde' }, AGORA, DIA);
+      await service.definir(ORG, 'm-8r410', { operador: 'Beto', tarefa: 'Plantio', talhaoId: null, turno: 'manha' }, AGORA, DIA);
+      const linhas = await daMaquina('m-8r410');
+      expect(linhas.map((l) => [l.turno, l.operador])).toEqual([['manha', 'Beto'], ['tarde', 'Ana']]);
+      expect(linhas.every((l) => ['trabalhando', 'parada', 'sem-sinal'].includes(l.maquinaStatus))).toBe(true);
+      // O mesmo operador pode pegar outra máquina em OUTRO turno, mas não no mesmo.
+      await service.definir(ORG, 'm-7r330', { operador: 'Ana', tarefa: null, talhaoId: null, turno: 'manha' }, AGORA, DIA);
+      await expect(service.definir(ORG, 'm-7r330', { operador: 'Beto', tarefa: null, talhaoId: null, turno: 'manha' }, AGORA, DIA)).rejects.toMatchObject({ response: { codigo: 'OPERADOR_JA_ESCALADO' } });
+    });
+
+    it('editar trocando o turno move a linha; "dia todo" e turno separado não convivem', async () => {
+      await service.definir(ORG, 'm-8r410', { operador: 'Beto', tarefa: 'Plantio', talhaoId: null, turno: 'noite', substitui: 'manha' }, AGORA, DIA);
+      expect((await daMaquina('m-8r410')).map((l) => l.turno)).toEqual(['tarde', 'noite']);
+      await service.definir(ORG, 'm-8r410', { operador: 'Caio', tarefa: null, talhaoId: null, turno: 'dia-todo' }, AGORA, DIA);
+      expect((await daMaquina('m-8r410')).map((l) => [l.turno, l.operador])).toEqual([['dia-todo', 'Caio']]);
+      await service.definir(ORG, 'm-8r410', { operador: 'Beto', tarefa: null, talhaoId: null, turno: 'tarde' }, AGORA, DIA);
+      expect((await daMaquina('m-8r410')).map((l) => l.turno)).toEqual(['tarde']);
+    });
+
+    it('tirar um turno deixa os outros; o dia seguinte repete os turnos como sugestão', async () => {
+      await service.definir(ORG, 'm-8r410', { operador: 'Dora', tarefa: null, talhaoId: null, turno: 'noite' }, AGORA, DIA);
+      await service.tirar(ORG, 'm-8r410', AGORA, DIA, 'tarde');
+      expect((await daMaquina('m-8r410')).map((l) => [l.turno, l.operador])).toEqual([['noite', 'Dora']]);
+      await service.definir(ORG, 'm-8r410', { operador: 'Beto', tarefa: null, talhaoId: null, turno: 'manha' }, AGORA, DIA);
+      const amanha = (await service.deHoje(ORG, AGORA, '2026-11-21')).itens.filter((i) => i.maquinaId === 'm-8r410');
+      expect(amanha.map((l) => [l.turno, l.operador, l.definida])).toEqual([['manha', 'Beto', false], ['noite', 'Dora', false]]);
+    });
+  });
 });

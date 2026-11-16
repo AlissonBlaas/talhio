@@ -7,7 +7,7 @@ import { useEnviarAoGrupo } from '@/features/whatsapp';
 import { mensagemDaEscala, tarefaDoPlano } from '../textos';
 
 type Escolha = { operador: string; turno: Turno };
-export type LinhaDaEscalaDoPlano = Escolha & { maquinaId: string; maquinaNome: string; implemento: string | null; repetido: boolean; faltando: boolean; enviada: boolean };
+export type LinhaDaEscalaDoPlano = Escolha & { maquinaId: string; maquinaNome: string; implemento: string | null; repetido: boolean; faltando: boolean; enviada: boolean; turnoGravado?: Turno };
 
 const igual = (a: string, b: string) => a.trim().localeCompare(b.trim(), 'pt-BR', { sensitivity: 'base' }) === 0;
 
@@ -33,6 +33,8 @@ export function useEscalaDoPlano(plano: Plano) {
       implemento: item?.implemento ?? null,
       operador: mudanca.operador ?? item?.operador ?? '',
       turno: mudanca.turno ?? item?.turno ?? ('dia-todo' as Turno),
+      // A linha que já estava gravada para esta máquina: se o turno mudar aqui, ela sai (a escala é por turno).
+      turnoGravado: item?.definida ? item.turno : undefined,
       // Mexeu depois de enviar: deixa de constar como enviada.
       enviada: !!item?.enviadaEm && !mudancas[maquina.id],
     };
@@ -73,7 +75,7 @@ export function useEscalaDoPlano(plano: Plano) {
       try {
         const itens: ItemParaGravar[] = linhas.map((l) => ({
           maquinaId: l.maquinaId,
-          dados: { operador: l.operador.trim(), turno: l.turno, tarefa: tarefaDoPlano(plano), talhaoId: plano.talhoes[0]?.id ?? null },
+          dados: { operador: l.operador.trim(), turno: l.turno, tarefa: tarefaDoPlano(plano), talhaoId: plano.talhoes[0]?.id ?? null, substitui: l.turnoGravado },
         }));
         await mudar.definirVarias(itens);
         // Só registra o envio se a mensagem saiu (no grupo da fazenda ou pelo WhatsApp do aparelho).

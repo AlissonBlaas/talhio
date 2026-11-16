@@ -1,10 +1,10 @@
 import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { MaquinaExterna, PosicaoExterna, ProvedorMaquinas } from '@talhio/deere';
-import type { AnaliseDaMaquina, Maquina, StatusMaquina, Talhao, RastroDaMaquina } from '@talhio/shared';
+import { turnoDaHora, type AnaliseDaMaquina, type Maquina, type StatusMaquina, type Talhao, type RastroDaMaquina } from '@talhio/shared';
 import { PROVEDOR_MAQUINAS } from '../integracoes/deere/deere.tokens.js';
 import { paraTipoMaquina } from '../integracoes/deere/mapeadores.js';
 import { EscalaRepository } from '../escala/escala.repository.js';
-import { diaLocal } from '../shared/dia.js';
+import { diaLocal, FUSO } from '../shared/dia.js';
 import { pontoNoPoligono } from '../shared/geo.js';
 import { TalhoesService } from '../talhoes/talhoes.service.js';
 import { LarguraImplementoRepository } from '../integracoes/deere/largura-implemento.repository.js';
@@ -78,7 +78,11 @@ export class MaquinasService {
       this.larguras.todas(orgId).catch(() => new Map<string, number>()),
     ]);
     // Quem foi escalado no app vale mais que o operador que a máquina informa.
-    const escalado = new Map(escala.map((e) => [e.maquinaId, e.operador]));
+    // Com a escala por turno, vale quem está no turno de AGORA (ou no dia todo); fora de qualquer turno escalado, o primeiro do dia.
+    const turnoAgora = turnoDaHora(Number(new Intl.DateTimeFormat('en-GB', { timeZone: FUSO, hour: '2-digit', hourCycle: 'h23' }).format(agora)));
+    const escalado = new Map<string, string>();
+    for (const e of escala) if (!escalado.has(e.maquinaId)) escalado.set(e.maquinaId, e.operador);
+    for (const e of escala) if (e.turno === 'dia-todo' || e.turno === turnoAgora) escalado.set(e.maquinaId, e.operador);
     return Promise.all(externas.map((externa) => this.montar(orgId, externa, talhoes, agora, escalado.get(externa.id) ?? null, larguras.get(externa.id) ?? null)));
   }
 

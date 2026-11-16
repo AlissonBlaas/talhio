@@ -1,4 +1,4 @@
-import { emojiDaMaquina, emojiDaTarefa, type Escala, type EscalaItem, type Turno } from '@talhio/shared';
+import { emojiDaMaquina, emojiDaTarefa, type Escala, type EscalaItem, type StatusMaquina, type Turno } from '@talhio/shared';
 
 export const TURNOS: { valor: Turno; rotulo: string }[] = [
   { valor: 'dia-todo', rotulo: 'Dia todo' },
@@ -7,6 +7,31 @@ export const TURNOS: { valor: Turno; rotulo: string }[] = [
   { valor: 'noite', rotulo: 'Noite' },
 ];
 export const rotuloDoTurno = (turno: Turno) => TURNOS.find((t) => t.valor === turno)?.rotulo ?? '';
+
+/** Como a máquina está agora, nas palavras da escala. */
+export const ROTULO_DO_STATUS: Record<StatusMaquina, string> = { trabalhando: 'Operando', parada: 'Parada', 'sem-sinal': 'Inativa' };
+
+export type MaquinaNaEscala = { maquinaId: string; maquinaNome: string; implemento: string | null; status: StatusMaquina; tipo: EscalaItem['maquinaTipo']; linhas: EscalaItem[] };
+
+const ORDEM_DO_STATUS: StatusMaquina[] = ['trabalhando', 'parada', 'sem-sinal'];
+
+/** As linhas da escala juntas por máquina (uma máquina pode ter um operador por turno). Quem está operando vem primeiro. */
+export function porMaquina(escala: Escala): MaquinaNaEscala[] {
+  const maquinas = new Map<string, MaquinaNaEscala>();
+  for (const item of escala.itens) {
+    const maquina = maquinas.get(item.maquinaId) ?? { maquinaId: item.maquinaId, maquinaNome: item.maquinaNome, implemento: item.implemento, status: item.maquinaStatus, tipo: item.maquinaTipo, linhas: [] };
+    maquina.linhas.push(item);
+    maquinas.set(item.maquinaId, maquina);
+  }
+  // `sort` é estável: dentro de cada estado fica a ordem que o servidor mandou.
+  return [...maquinas.values()].sort((a, b) => ORDEM_DO_STATUS.indexOf(a.status) - ORDEM_DO_STATUS.indexOf(b.status));
+}
+
+/** O primeiro turno separado (manhã, tarde, noite) que a máquina ainda não tem. Nulo quando os três já estão ocupados. */
+export function turnoLivre(linhas: EscalaItem[]): Turno | null {
+  const usados = new Set(linhas.filter((l) => l.operador).map((l) => l.turno));
+  return (['manha', 'tarde', 'noite'] as const).find((t) => !usados.has(t)) ?? null;
+}
 
 /** Atalhos para o campo "O que vai fazer". O campo aceita qualquer texto. */
 export const TAREFAS = ['Plantio', 'Pulverização', 'Adubação', 'Colheita', 'Gradagem', 'Transporte'];
@@ -29,13 +54,17 @@ export function diaPorExtenso(dia: string): string {
 /** Quem tem operador entra na mensagem; máquina sem ninguém fica de fora. */
 export const itensComOperador = (escala: Escala) => escala.itens.filter((i) => i.operador);
 
-/** A escala em texto simples, por máquina, para mandar no grupo da equipe. */
+/** A escala em texto simples, por máquina (com um operador por turno, quando há), para mandar no grupo da equipe. */
 export function textoDaEscala(escala: Escala): string {
-  const blocos = itensComOperador(escala).map((item) => {
-    const maquina = `${item.maquinaNome}${item.implemento ? ` (${item.implemento})` : ''}`;
-    const tarefa = item.tarefa ? `${emojiDaTarefa(item.tarefa)} ${item.tarefa}`.trim() : null;
-    const onde = [tarefa, item.talhaoNome ? `📍 ${item.talhaoNome}` : null, item.turno === 'dia-todo' ? null : `🕐 ${rotuloDoTurno(item.turno).toLowerCase()}`].filter(Boolean).join(' · ');
-    return [`${emojiDaMaquina(item.maquinaNome)} *${maquina}*: 👤 ${item.operador}`, onde].filter(Boolean).join('\n');
+  const blocos = porMaquina({ ...escala, itens: itensComOperador(escala) }).map(({ maquinaNome, implemento, linhas }) => {
+    const maquina = `${emojiDaMaquina(maquinaNome)} *${maquinaNome}${implemento ? ` (${implemento})` : ''}*`;
+    const detalhe = (item: EscalaItem) => {
+      const tarefa = item.tarefa ? `${emojiDaTarefa(item.tarefa)} ${item.tarefa}`.trim() : null;
+      return [tarefa, item.talhaoNome ? `📍 ${item.talhaoNome}` : null].filter(Boolean).join(' · ');
+    };
+    const unica = linhas.length === 1 ? linhas[0]! : null;
+    if (unica && unica.turno === 'dia-todo') return [`${maquina}: 👤 ${unica.operador}`, detalhe(unica)].filter(Boolean).join('\n');
+    return [maquina, ...linhas.map((item) => [`🕐 ${rotuloDoTurno(item.turno)}: 👤 ${item.operador}`, detalhe(item)].filter(Boolean).join(' · '))].join('\n');
   });
   return [`📋 *Escala de hoje*`, `📅 ${diaPorExtenso(escala.dia)}`, '', blocos.join('\n\n')].join('\n');
 }

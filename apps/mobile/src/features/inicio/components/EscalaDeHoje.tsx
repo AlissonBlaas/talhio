@@ -21,7 +21,7 @@ export const EscalaDeHoje = memo(function EscalaDeHoje() {
         </Pressable>
       </View>
       {escala.itens.slice(0, 4).map((item) => (
-        <View key={item.maquinaId} style={styles.linha}>
+        <View key={`${item.maquinaId}/${item.turno}`} style={styles.linha}>
           <Text style={styles.maquina} numberOfLines={1}>
             {item.maquinaNome}
           </Text>
