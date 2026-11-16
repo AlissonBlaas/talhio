@@ -9,6 +9,7 @@ import { PassoLarguras, useMaquinas } from '@/features/maquinas';
 import { useTalhoes } from '@/features/talhoes';
 import { PassoWhatsapp, useWhatsapp } from '@/features/whatsapp';
 import { CabecalhoTela } from '@/shared/components/CabecalhoTela';
+import { Icone } from '@/shared/components/Icone';
 import { useSessao } from '@/shared/lib/sessao';
 import { cores, fontes, MARGEM_TELA } from '@/shared/theme/tokens';
 
@@ -68,6 +69,13 @@ export function OnboardingScreen() {
           progresso={[1, 2, 3, 4].map((n) => n <= passo)}
         />
         <View style={styles.corpo}>
+          {/* Voltar fica no alto, sempre à vista: no último passo a lista de máquinas empurra os botões para longe. */}
+          {passo > 1 ? (
+            <Pressable accessibilityRole="button" accessibilityLabel={`Voltar ao passo ${passo - 1}`} onPress={() => ir((passo - 1) as Passo)} hitSlop={6} style={styles.anterior}>
+              <Icone nome="voltar" cor={cores.mata} tamanho={18} espessura={2.4} />
+              <Text style={styles.anteriorTexto}>Passo anterior</Text>
+            </Pressable>
+          ) : null}
           <View style={styles.abertura}>
             <Text style={styles.titulo}>{titulo}</Text>
             <Text style={styles.apoio}>{apoio}</Text>
@@ -192,6 +200,8 @@ const styles = StyleSheet.create({
   tela: { flex: 1, backgroundColor: cores.fundo },
   conteudo: { flexGrow: 1, gap: 20 },
   corpo: { paddingHorizontal: MARGEM_TELA, gap: 16 },
+  anterior: { alignSelf: 'flex-start', minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 6, paddingRight: 14, paddingLeft: 10, borderRadius: 22, borderWidth: 1, borderColor: cores.bordaForte, backgroundColor: cores.cartao },
+  anteriorTexto: { fontFamily: fontes.rotuloLeve, fontSize: 15, color: cores.mata },
   abertura: { gap: 6 },
   titulo: { fontFamily: fontes.titulo, fontSize: 26, lineHeight: 30, color: cores.texto },
   apoio: { fontFamily: fontes.regular, fontSize: 16, lineHeight: 22, color: cores.textoMedio },
