@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import type { Turno } from '@talhio/shared';
-import { and, eq, inArray, ne } from 'drizzle-orm';
+import { and, eq, gte, inArray, lt, ne } from 'drizzle-orm';
 import { BANCO } from '../banco/banco.module.js';
 import type { Banco } from '../banco/banco.js';
 import { escalas } from '../banco/schema.js';
@@ -19,6 +19,20 @@ export class EscalaRepository {
       .select({ maquinaId: escalas.maquinaId, operador: escalas.operador, tarefa: escalas.tarefa, talhaoId: escalas.talhaoId, turno: escalas.turno, enviadaEm: escalas.enviadaEm })
       .from(escalas)
       .where(and(eq(escalas.orgId, orgId), eq(escalas.dia, dia)));
+  }
+
+  /**
+   * A última escala gravada de cada máquina ANTES de `dia`, olhando até `desde`: os turnos do dia mais recente em que
+   * ela foi escalada. É de onde sai a sugestão do dia (fim de semana e dia parado no meio não apagam o costume).
+   */
+  async ultimaAntes(orgId: string, dia: string, desde: string): Promise<EscalaGravada[]> {
+    const linhas = await this.db
+      .select({ dia: escalas.dia, maquinaId: escalas.maquinaId, operador: escalas.operador, tarefa: escalas.tarefa, talhaoId: escalas.talhaoId, turno: escalas.turno, enviadaEm: escalas.enviadaEm })
+      .from(escalas)
+      .where(and(eq(escalas.orgId, orgId), lt(escalas.dia, dia), gte(escalas.dia, desde)));
+    const ultimoDia = new Map<string, string>();
+    for (const l of linhas) if (l.dia > (ultimoDia.get(l.maquinaId) ?? '')) ultimoDia.set(l.maquinaId, l.dia);
+    return linhas.filter((l) => l.dia === ultimoDia.get(l.maquinaId)).map(({ dia: _dia, ...resto }) => resto);
   }
 
   /**

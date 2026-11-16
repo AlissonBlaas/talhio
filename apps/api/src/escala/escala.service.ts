@@ -5,8 +5,10 @@ import { diaLocal } from '../shared/dia.js';
 import { TalhoesService } from '../talhoes/talhoes.service.js';
 import { EscalaRepository, type DadosDaEscala } from './escala.repository.js';
 
-/** O dia de calendário anterior a `dia` (AAAA-MM-DD). */
-const diaAntes = (dia: string) => new Date(Date.parse(`${dia}T12:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+/** O dia de calendário `n` dias antes de `dia` (AAAA-MM-DD). */
+const diasAntes = (dia: string, n: number) => new Date(Date.parse(`${dia}T12:00:00Z`) - n * 86_400_000).toISOString().slice(0, 10);
+/** Até quantos dias atrás a última escala de uma máquina ainda vale como sugestão. */
+const DIAS_DE_COSTUME = 30;
 
 const mesmoNome = (a: string, b: string) => a.trim().localeCompare(b.trim(), 'pt-BR', { sensitivity: 'base' }) === 0;
 /** Dois turnos se cruzam quando são o mesmo ou um deles é o dia todo. */
@@ -26,7 +28,7 @@ export class EscalaService {
    * sem ela, usa o operador que a própria máquina informa.
    */
   async deHoje(orgId: string, agora = new Date(), dia = diaLocal(agora)): Promise<Escala> {
-    const [maquinas, talhoes, gravadas, ontem] = await Promise.all([this.maquinas.listar(orgId, agora), this.talhoes.listar(orgId), this.escalas.doDia(orgId, dia), this.escalas.doDia(orgId, diaAntes(dia))]);
+    const [maquinas, talhoes, gravadas, ontem] = await Promise.all([this.maquinas.listar(orgId, agora), this.talhoes.listar(orgId), this.escalas.doDia(orgId, dia), this.escalas.ultimaAntes(orgId, dia, diasAntes(dia, DIAS_DE_COSTUME))]);
     const nomeDoTalhao = new Map(talhoes.map((t) => [t.id, t.nome]));
 
     const naOrdem = <T extends { turno: Turno }>(linhas: T[]) => [...linhas].sort((a, b) => ORDEM_DOS_TURNOS.indexOf(a.turno) - ORDEM_DOS_TURNOS.indexOf(b.turno));
@@ -46,7 +48,7 @@ export class EscalaService {
           enviadaEm: gravada.enviadaEm?.toISOString() ?? null,
         }));
       }
-      // Sem nada gravado hoje: repete os turnos de ontem, cada um com o seu operador.
+      // Sem nada gravado hoje: repete os turnos da última vez que a máquina foi escalada, cada um com o seu operador.
       const repetidas = naOrdem(ontem.filter((g) => g.maquinaId === maquina.id));
       if (repetidas.length > 0) {
         return repetidas.map((repetida) => {

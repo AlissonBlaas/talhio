@@ -38,9 +38,9 @@ export function MapaScreen() {
     controle,
     mapa.maquinas,
     // O que sobra do mapa entre as contagens do topo e o painel de baixo (mais alto quando há algo selecionado).
-    { esquerda: 0, topo: top + 160, direita: largura, baixo: altura - (mapa.selecao?.tipo === 'maquina' ? 470 : mapa.selecao ? 340 : 140) },
-    // Botões de zoom, "Novo plano" e "Importar", no canto direito.
-    { esquerda: largura - 135, topo: top + 105, direita: largura, baixo: top + 330 },
+    { esquerda: 0, topo: top + 160, direita: largura, baixo: altura - (mapa.selecao?.tipo === 'maquina' ? 300 : mapa.selecao ? 340 : 140) },
+    // Botões de zoom e "Novo plano", no canto direito.
+    { esquerda: largura - 135, topo: top + 105, direita: largura, baixo: top + 280 },
   );
 
   /** Enquadra as máquinas de um estado, para achar de uma vez quem está trabalhando (ou parada com sinal). */
@@ -94,9 +94,6 @@ export function MapaScreen() {
         <Pressable accessibilityRole="button" accessibilityLabel="Voltar" onPress={() => router.back()} style={styles.redondo}>
           <Icone nome="voltar" cor={cores.texto} tamanho={20} espessura={2} />
         </Pressable>
-        <View style={styles.tituloPill}>
-          <Text style={styles.titulo}>Mapa da fazenda</Text>
-        </View>
       </View>
 
       <MaquinasForaDaTela indicadores={foraDaTela.indicadores} aoTocar={irParaMaquina} />
@@ -131,9 +128,6 @@ export function MapaScreen() {
         <Pressable accessibilityRole="button" onPress={() => router.navigate('/novo-plano')} style={styles.novoTalhao}>
           <Icone nome="mais" cor={cores.sobreEscuro} tamanho={16} espessura={2.4} />
           <Text style={styles.novoTalhaoTexto}>Novo plano</Text>
-        </Pressable>
-        <Pressable accessibilityRole="button" onPress={() => router.navigate('/importar')} style={[styles.novoTalhao, styles.importar]}>
-          <Text style={styles.novoTalhaoTexto}>Importar</Text>
         </Pressable>
       </View>
 

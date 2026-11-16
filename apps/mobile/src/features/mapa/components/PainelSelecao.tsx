@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { StatusPill, useParadasDaMaquina } from '@/features/maquinas';
+import { StatusPill } from '@/features/maquinas';
 import { Icone } from '@/shared/components/Icone';
 import { hectares, horaDoDia, horasMinutos, minusculaInicial, siglaTalhao } from '@/shared/lib/format';
 import { cores, fontes } from '@/shared/theme/tokens';
@@ -28,8 +28,6 @@ type Props = {
 /** Painel inferior do mapa: legenda quando nada está selecionado, detalhes quando há seleção. */
 export function PainelSelecao({ selecao, aoFechar, aoVerMaquina, aoPlanejar, aoLinhaAb }: Props) {
   const { bottom } = useSafeAreaInsets();
-  const paradas = useParadasDaMaquina(selecao?.tipo === 'maquina' ? selecao.maquina.id : null);
-  const minutosParado = paradas.reduce((s, p) => s + p.minutos, 0);
   return (
     <View style={[styles.painel, { paddingBottom: Math.max(bottom, 22) + 8 }]}>
       <View style={styles.alca} />
@@ -58,33 +56,18 @@ export function PainelSelecao({ selecao, aoFechar, aoVerMaquina, aoPlanejar, aoL
             <Dado rotulo="Horas hoje" valor={horasMinutos(selecao.maquina.horasHoje)} />
             <Dado rotulo="Área hoje" valor={hectares(selecao.maquina.areaHojeHa)} />
           </View>
-          <View style={styles.dados}>
-            <Dado rotulo="Velocidade" valor={selecao.maquina.status === 'sem-sinal' || selecao.maquina.velocidadeKmH === null ? '—' : `${selecao.maquina.velocidadeKmH.toFixed(1).replace('.', ',')} km/h`} />
-            <Dado rotulo="Motor" valor={selecao.maquina.motorLigado ? 'Ligado' : 'Desligado'} />
-            <Dado rotulo="Combustível" valor={selecao.maquina.combustivelPct === null ? '—' : `${Math.round(selecao.maquina.combustivelPct)}%`} aviso={selecao.maquina.combustivelSuspeito} />
-          </View>
-          {selecao.maquina.usoHoje ? (
-            <View style={styles.dados}>
-              <Dado rotulo="Trabalhando" valor={horasMinutos(selecao.maquina.usoHoje.trabalhandoH)} />
-              <Dado rotulo="Ocioso" valor={horasMinutos(selecao.maquina.usoHoje.ociosoH)} />
-              <Dado rotulo="Transporte" valor={horasMinutos(selecao.maquina.usoHoje.transporteH)} />
-            </View>
-          ) : null}
-          {selecao.maquina.usoHoje && selecao.maquina.usoHoje.semPosicaoH > 0 ? (
-            <Text style={styles.linhaInfo}>Mais {horasMinutos(selecao.maquina.usoHoje.semPosicaoH)} de motor ligado sem posição lida{selecao.maquina.usoHoje.semPosicaoH >= 1 ? ': vale conferir com o operador' : ''}.</Text>
-          ) : null}
-          {selecao.maquina.usoHoje && selecao.maquina.usoHoje.porTalhao.length > 0 ? (
-            <Text style={styles.linhaInfo} numberOfLines={2}>
-              Hoje: {selecao.maquina.usoHoje.porTalhao.slice(0, 3).map((t) => `${horasMinutos(t.andandoH + t.paradoH)} ${t.talhaoId ? `em ${siglaTalhao(t.nome)}` : 'fora dos talhões'}`).join(' · ')}
-            </Text>
-          ) : null}
-          {selecao.maquina.combustivelSuspeito ? <Text style={[styles.linhaInfo, styles.aviso]}>Combustível sem leitura confiável: marca cheio há horas de trabalho.</Text> : null}
-          {paradas.length > 0 ? (
-            <Text style={styles.linhaInfo}>
-              {paradas.length === 1 ? '1 parada hoje' : `${paradas.length} paradas hoje`} · {horasMinutos(minutosParado / 60)} no total · última às {horaDoDia(paradas[0]!.inicio)} ({paradas[0]!.minutos < 1 ? 'menos de 1' : Math.round(paradas[0]!.minutos)} min)
-            </Text>
-          ) : null}
-          <Text style={styles.linhaInfo}>{selecao.maquina.status === 'sem-sinal' ? `Sem sinal desde ${horaDoDia(selecao.maquina.ultimoSinal)}` : 'Sinal agora · atualiza a cada 15 s'}</Text>
+          {/* Só o essencial aqui, para o painel não cobrir o mapa: motor, combustível, paradas e o uso do dia ficam em "Ver máquina". */}
+          <Text style={styles.linhaInfo} numberOfLines={1}>
+            {selecao.maquina.status === 'sem-sinal'
+              ? `Sem sinal desde ${horaDoDia(selecao.maquina.ultimoSinal)}`
+              : [
+                  selecao.maquina.velocidadeKmH === null ? null : `${selecao.maquina.velocidadeKmH.toFixed(1).replace('.', ',')} km/h`,
+                  selecao.maquina.motorLigado ? 'motor ligado' : 'motor desligado',
+                  'sinal agora',
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+          </Text>
           <Botao rotulo="Ver máquina" onPress={() => aoVerMaquina(selecao.maquina.id)} />
         </View>
       ) : (

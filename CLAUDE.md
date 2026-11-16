@@ -308,6 +308,14 @@ Backend (`apps/api/src`)
   talhão do app sem cópia = não envia (`so-no-talhio`). No app, `NovoTalhaoScreen` PERGUNTA antes de salvar ("Criar
   também na John Deere?"), só com a Deere conectada: é escrita na conta do cliente e o Talhio não apaga de lá.
   NÃO conferido contra a Deere real (formato de `fields`/`boundaries` e permissão de escrita).
+- Menos trabalho na escala e menos dado no mapa (16/11, o Alisson: "é muita mão, às vezes tem muitos tratores" e "o mapa
+  está começando a ficar poluído"): a sugestão da escala vem da ÚLTIMA vez que a máquina foi escalada, até 30 dias
+  atrás (`EscalaRepository.ultimaAntes`), não só de ontem; na tela, "Confirmar escala sugerida" fica no TOPO e as
+  máquinas inativas sem operador ficam recolhidas ("N máquinas inativas sem operador · Mostrar"). Trocar operador
+  gravado, mudar turno ou tirar turno deixa um aviso pronto para o grupo (`textoDaTroca`, cartão "Avisar a equipe da
+  mudança?"; montar a escala pela primeira vez não gera aviso). No mapa, o painel da máquina ficou curto (talhão,
+  horas, área e uma linha com velocidade/motor/sinal; o resto está em "Ver máquina") e saíram o título "Mapa da
+  fazenda" e o botão "Importar" (a importação continua no Início).
 - Resposta da IA organizada (15/11): as instruções mandam começar pela frase com o número em **negrito** e, quando há
   várias partes, tabela (até 4 colunas), título `## ` e tópicos `- `; só essa marcação é permitida. No app,
   `features/assistente/formatar.ts` (`lerBlocos`, puro, aguenta resposta pela metade) e `components/TextoFormatado.tsx`

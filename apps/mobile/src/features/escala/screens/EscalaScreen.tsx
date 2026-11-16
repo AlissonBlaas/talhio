@@ -40,6 +40,11 @@ export function EscalaScreen() {
   };
 
   const maquinas = escala ? porMaquina(escala) : [];
+  // Na tela ficam as máquinas com alguém escalado e as que estão com sinal; as inativas sem operador ficam recolhidas.
+  const ehPrincipal = (m: (typeof maquinas)[number]) => m.status !== 'sem-sinal' || m.linhas.some((l) => l.operador);
+  const principais = maquinas.filter(ehPrincipal);
+  const outras = maquinas.filter((m) => !ehPrincipal(m));
+  const [mostrarOutras, setMostrarOutras] = useState(false);
   const daMaquina = maquinas.find((m) => m.maquinaId === editandoId?.maquinaId) ?? null;
   const existente = daMaquina?.linhas.find((l) => l.turno === editandoId?.turno) ?? null;
   // Turno novo: começa em branco, com a tarefa e o talhão do turno que a máquina já tem (o mais comum é só trocar o operador).
@@ -80,8 +85,21 @@ export function EscalaScreen() {
           </View>
         ) : (
           <View style={styles.corpo}>
+            {/* O trabalho de todo dia vem primeiro: a escala já chega montada com a da última vez, basta confirmar. */}
+            {sugeridas.length > 0 ? (
+              <View style={styles.sugestao}>
+                <Text style={styles.sugestaoTexto}>
+                  {sugeridas.length === 1 ? '1 máquina com a escala sugerida' : `${sugeridas.length} máquinas com a escala sugerida`} (a da última vez ou o operador que a máquina informa). Se está certo, confirme tudo de uma vez.
+                </Text>
+                {mudar.erroAoConfirmar ? <Text style={styles.sugestaoErro}>Não deu para confirmar. Tente de novo.</Text> : null}
+                <Pressable accessibilityRole="button" disabled={mudar.confirmando} onPress={() => mudar.confirmar()} style={styles.botao}>
+                  <Text style={styles.botaoTexto}>{mudar.confirmando ? 'Confirmando…' : 'Confirmar escala sugerida'}</Text>
+                </Pressable>
+              </View>
+            ) : null}
+
             <View style={styles.lista}>
-              {maquinas.map((maquina, i) => (
+              {principais.map((maquina, i) => (
                 <Surgir key={maquina.maquinaId} ordem={i}>
                   <MaquinaNaEscala
                     maquina={maquina}
@@ -90,6 +108,25 @@ export function EscalaScreen() {
                   />
                 </Surgir>
               ))}
+              {/* Máquina guardada e sem ninguém escalado não precisa ocupar a tela: fica recolhida. */}
+              {outras.length > 0 ? (
+                <Pressable accessibilityRole="button" accessibilityState={{ expanded: mostrarOutras }} onPress={() => setMostrarOutras((v) => !v)} style={styles.outras}>
+                  <Text style={styles.outrasTexto}>
+                    {outras.length === 1 ? '1 máquina inativa sem operador' : `${outras.length} máquinas inativas sem operador`}
+                  </Text>
+                  <Text style={styles.outrasAcao}>{mostrarOutras ? 'Esconder' : 'Mostrar'}</Text>
+                </Pressable>
+              ) : null}
+              {mostrarOutras
+                ? outras.map((maquina) => (
+                    <MaquinaNaEscala
+                      key={maquina.maquinaId}
+                      maquina={maquina}
+                      aoTocar={(item) => setEditandoId({ maquinaId: item.maquinaId, turno: item.turno, novo: false })}
+                      aoAdicionar={() => setEditandoId({ maquinaId: maquina.maquinaId, turno: turnoLivre(maquina.linhas) ?? 'manha', novo: true })}
+                    />
+                  ))
+                : null}
             </View>
 
             <View style={styles.aviso}>
@@ -114,17 +151,6 @@ export function EscalaScreen() {
               </View>
             ) : null}
 
-            {sugeridas.length > 0 ? (
-              <View style={styles.sugestao}>
-                <Text style={styles.sugestaoTexto}>
-                  {sugeridas.length === 1 ? '1 máquina com a escala sugerida' : `${sugeridas.length} máquinas com a escala sugerida`} (a de ontem ou o operador que a máquina informa). Confira e confirme tudo de uma vez.
-                </Text>
-                {mudar.erroAoConfirmar ? <Text style={styles.sugestaoErro}>Não deu para confirmar. Tente de novo.</Text> : null}
-                <Pressable accessibilityRole="button" disabled={mudar.confirmando} onPress={() => mudar.confirmar()} style={styles.botao}>
-                  <Text style={styles.botaoTexto}>{mudar.confirmando ? 'Confirmando…' : 'Confirmar escala sugerida'}</Text>
-                </Pressable>
-              </View>
-            ) : null}
 
             <Pressable
               accessibilityRole="button"
@@ -206,6 +232,9 @@ const styles = StyleSheet.create({
   trocaNaoTexto: { fontFamily: fontes.rotulo, fontSize: 15, color: cores.mata },
   trocaSim: { flex: 1.3, height: 48, borderRadius: 24, backgroundColor: cores.milho, alignItems: 'center', justifyContent: 'center' },
   sugestao: { gap: 10 },
+  outras: { minHeight: 52, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingHorizontal: 16, borderRadius: 26, backgroundColor: cores.neutroFundo },
+  outrasTexto: { flex: 1, fontFamily: fontes.regular, fontSize: 14, color: cores.textoMedio },
+  outrasAcao: { fontFamily: fontes.rotulo, fontSize: 14, color: cores.folha },
   sugestaoTexto: { fontFamily: fontes.regular, fontSize: 14, lineHeight: 20, color: cores.textoMedio },
   sugestaoErro: { fontFamily: fontes.regular, fontSize: 13, color: cores.aviso },
   botao: { height: 54, borderRadius: 27, backgroundColor: cores.milho, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: cores.milho },
