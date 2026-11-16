@@ -242,6 +242,9 @@ Backend (`apps/api/src`)
   Cada passo opcional mostra `SePular` (o que se perde) ANTES dos botões; feito, vira confirmação e o botão é
   "Continuar"; sem fazer, "Pular por enquanto". Quem já tem a Deere ligada começa no passo 2. A Config ganhou "Rever os
   primeiros passos" (só administrador). `PortaDoOnboarding` continua levando só quem ainda não conectou a Deere.
+- Limpar notificações (16/11): `POST /v1/notificacoes/limpar` grava `notificacoes_lidas.limpo_ate` (migração 0023) e a
+  lista do usuário passa a trazer só o que chegou depois. É por USUÁRIO e não apaga nada: os outros continuam vendo e o
+  motor de alertas segue enxergando os abertos. No app, botão "Limpar" no topo da tela (com confirmação), `useLimparNotificacoes`.
 - Resposta da IA organizada (15/11): as instruções mandam começar pela frase com o número em **negrito** e, quando há
   várias partes, tabela (até 4 colunas), título `## ` e tópicos `- `; só essa marcação é permitida. No app,
   `features/assistente/formatar.ts` (`lerBlocos`, puro, aguenta resposta pela metade) e `components/TextoFormatado.tsx`

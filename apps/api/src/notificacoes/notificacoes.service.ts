@@ -17,8 +17,14 @@ export class NotificacoesService {
   ) {}
 
   async listar(orgId: string, usuarioId: string): Promise<ListaNotificacoes> {
-    const [itens, naoLidas] = await Promise.all([this.notificacoes.listar(orgId, LIMITE_DA_ABA), this.notificacoes.naoLidas(orgId, usuarioId)]);
+    const limpoAte = await this.notificacoes.limpoAte(usuarioId);
+    const [itens, naoLidas] = await Promise.all([this.notificacoes.listar(orgId, LIMITE_DA_ABA, limpoAte), this.notificacoes.naoLidas(orgId, usuarioId)]);
     return { itens, naoLidas };
+  }
+
+  /** Limpa a aba só para este usuário. */
+  async limpar(usuarioId: string): Promise<void> {
+    await this.notificacoes.limpar(usuarioId);
   }
 
   async marcarLidas(usuarioId: string): Promise<void> {

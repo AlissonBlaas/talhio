@@ -375,4 +375,6 @@ export const notificacoes = pgTable(
 export const notificacoesLidas = pgTable('notificacoes_lidas', {
   usuarioId: text('usuario_id').primaryKey().references(() => usuarios.id, { onDelete: 'cascade' }),
   lidoAte: timestamp('lido_ate', { withTimezone: true }).notNull().defaultNow(),
+  /** Até quando o usuário LIMPOU a aba: o que veio antes não aparece mais para ele (continua para os outros). */
+  limpoAte: timestamp('limpo_ate', { withTimezone: true }),
 });

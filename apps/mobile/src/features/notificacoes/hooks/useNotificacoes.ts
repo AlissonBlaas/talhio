@@ -36,3 +36,16 @@ export function useMarcarLidas() {
     },
   });
 }
+
+/** "Limpar": a aba deste usuário fica vazia na hora; os alertas continuam para os outros e novos voltam a aparecer. */
+export function useLimparNotificacoes() {
+  const queryClient = useQueryClient();
+  const mutacao = useMutation({
+    mutationFn: notificacoesApi.limpar,
+    onSuccess: () => {
+      queryClient.setQueryData(notificacoesKeys.lista(), { itens: [], naoLidas: 0 });
+      void queryClient.invalidateQueries({ queryKey: notificacoesKeys.lista() });
+    },
+  });
+  return { limpar: () => mutacao.mutate(), limpando: mutacao.isPending, erro: mutacao.error };
+}

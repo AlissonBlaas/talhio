@@ -136,6 +136,31 @@ describe('repositórios', () => {
     expect((await repo.abertas('org-demo', 'sem-sinal')).map((a) => a.id)).toEqual(['n2']);
     expect((await repo.listar('org-demo', 10)).find((n) => n.id === 'n1')?.resolvidaEm).toBe('2026-11-13T11:30:00.000Z');
   });
+
+  it('limpar: a aba do usuário esvazia e zera o não lido, sem apagar nada para os outros nem para o motor', async () => {
+    const db = await montarBanco();
+    const repo = new NotificacoesRepository(db);
+    const nova = (id: string, criadaEm: Date) => ({ id, chave: `maquina-parada:${id}`, tipo: 'maquina-parada' as const, severidade: 'media' as const, maquinaId: '7', maquinaNome: 'M7', titulo: 'T', texto: 'X', criadaEm });
+    await repo.criar('org-demo', nova('a', new Date('2026-11-13T10:00:00Z')));
+    await repo.criar('org-demo', nova('b', new Date('2026-11-13T11:00:00Z')));
+    expect(await repo.limpoAte('u1')).toBeNull();
+
+    const limpou = new Date('2026-11-13T12:00:00Z');
+    await repo.limpar('u1', limpou);
+    expect(await repo.listar('org-demo', 10, await repo.limpoAte('u1'))).toEqual([]);
+    expect(await repo.naoLidas('org-demo', 'u1', new Date('2026-11-13T12:30:00Z'))).toBe(0);
+    // Outro usuário continua vendo tudo, e os alertas abertos seguem lá para o motor não repetir aviso.
+    expect(await repo.listar('org-demo', 10, await repo.limpoAte('u2'))).toHaveLength(2);
+    expect(await repo.abertas('org-demo', 'maquina-parada')).toHaveLength(2);
+
+    // Alerta que chega depois de limpar aparece de novo, e conta como não lido.
+    await repo.criar('org-demo', nova('c', new Date('2026-11-13T13:00:00Z')));
+    expect((await repo.listar('org-demo', 10, await repo.limpoAte('u1'))).map((n) => n.id)).toEqual(['c']);
+    expect(await repo.naoLidas('org-demo', 'u1', new Date('2026-11-13T13:30:00Z'))).toBe(1);
+    // Marcar como lido depois não desfaz a limpeza.
+    await repo.marcarLidas('u1', new Date('2026-11-13T14:00:00Z'));
+    expect(await repo.limpoAte('u1')).toEqual(limpou);
+  });
 });
 
 describe('MotorDeAlertasService', () => {

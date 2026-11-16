@@ -1,0 +1,1 @@
+ALTER TABLE "notificacoes_lidas" ADD COLUMN "limpo_ate" timestamp with time zone;

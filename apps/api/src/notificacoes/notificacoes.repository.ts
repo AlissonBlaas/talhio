@@ -52,9 +52,25 @@ export class NotificacoesRepository {
     await this.db.update(notificacoes).set({ resolvidaEm: quando }).where(and(eq(notificacoes.orgId, orgId), eq(notificacoes.id, id), isNull(notificacoes.resolvidaEm)));
   }
 
-  async listar(orgId: string, limite: number): Promise<Notificacao[]> {
-    const linhas = await this.db.select().from(notificacoes).where(eq(notificacoes.orgId, orgId)).orderBy(desc(notificacoes.criadaEm)).limit(limite);
+  /** As mais recentes da fazenda. Com `depoisDe`, só as que chegaram depois (o usuário limpou a aba até ali). */
+  async listar(orgId: string, limite: number, depoisDe?: Date | null): Promise<Notificacao[]> {
+    const filtro = depoisDe ? and(eq(notificacoes.orgId, orgId), gt(notificacoes.criadaEm, depoisDe)) : eq(notificacoes.orgId, orgId);
+    const linhas = await this.db.select().from(notificacoes).where(filtro).orderBy(desc(notificacoes.criadaEm)).limit(limite);
     return linhas.map(paraContrato);
+  }
+
+  /** Até quando o usuário limpou a aba, ou nulo se nunca limpou. */
+  async limpoAte(usuarioId: string): Promise<Date | null> {
+    const [l] = await this.db.select({ limpoAte: notificacoesLidas.limpoAte }).from(notificacoesLidas).where(eq(notificacoesLidas.usuarioId, usuarioId)).limit(1);
+    return l?.limpoAte ?? null;
+  }
+
+  /**
+   * Limpa a aba deste usuário: o que chegou até agora some para ele e conta como visto. Nada é apagado: os alertas
+   * continuam para os outros usuários e para o motor de alertas (que usa os abertos para não repetir aviso).
+   */
+  async limpar(usuarioId: string, agora: Date = new Date()): Promise<void> {
+    await this.db.insert(notificacoesLidas).values({ usuarioId, lidoAte: agora, limpoAte: agora }).onConflictDoUpdate({ target: notificacoesLidas.usuarioId, set: { lidoAte: agora, limpoAte: agora } });
   }
 
   /** Quantas chegaram depois da última leitura do usuário (sem leitura registrada, as dos últimos 7 dias). */

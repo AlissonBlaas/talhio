@@ -8,6 +8,9 @@ export const notificacoesApi = {
   marcarLidas: async (): Promise<void> => {
     await apiClient.post('/notificacoes/lidas', {});
   },
+  limpar: async (): Promise<void> => {
+    await apiClient.post('/notificacoes/limpar', {});
+  },
   registrarAparelho: async (dados: RegistrarDispositivo): Promise<void> => {
     await apiClient.post('/dispositivos', dados);
   },

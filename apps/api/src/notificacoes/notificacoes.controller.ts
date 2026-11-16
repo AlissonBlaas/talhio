@@ -22,6 +22,13 @@ export class NotificacoesController {
     await this.notificacoes.marcarLidas(usuarioId);
   }
 
+  /** O usuário tocou em "Limpar": a aba dele fica vazia até chegar um alerta novo. Os outros usuários não são afetados. */
+  @Post('notificacoes/limpar')
+  @HttpCode(204)
+  async limpar(@UsuarioAtual() usuarioId: string): Promise<void> {
+    await this.notificacoes.limpar(usuarioId);
+  }
+
   /** Liga o push deste aparelho para o usuário logado. */
   @Post('dispositivos')
   @HttpCode(204)
