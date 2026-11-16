@@ -64,6 +64,8 @@ export const mensagens = pgTable(
     conversaId: text('conversa_id').notNull().references(() => conversas.id, { onDelete: 'cascade' }),
     papel: text('papel', { enum: ['usuario', 'assistente'] }).notNull(),
     texto: text('texto').notNull(),
+    /** Botões que a resposta ofereceu (telas do aplicativo). Nulo nas perguntas e nas respostas sem botão. */
+    atalhos: jsonb('atalhos').$type<{ rotulo: string; rota: string }[]>(),
     /** Ordem dentro da conversa (o relógio sozinho empata quando pergunta e resposta são gravadas juntas). */
     ordem: integer('ordem').notNull(),
     criadoEm: criadoEm(),

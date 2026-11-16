@@ -14,6 +14,7 @@ import { MaquinasService } from '../maquinas/maquinas.service.js';
 import { PainelService } from '../painel/painel.service.js';
 import { RelatoriosService } from '../relatorios/relatorios.service.js';
 import { EscalaRepository } from '../escala/escala.repository.js';
+import { EscalaService } from '../escala/escala.service.js';
 import { TalhoesRepository } from '../talhoes/talhoes.repository.js';
 import { TalhoesService } from '../talhoes/talhoes.service.js';
 import { AssistenteService, SO_O_CONFIRMADO } from './assistente.service.js';
@@ -35,7 +36,7 @@ async function montar(ia: ModeloIa, preparar?: (banco: Banco) => Promise<void>) 
   ]);
   const modulo = await Test.createTestingModule({
     providers: [
-      AssistenteService, ConversasRepository, ConsumoDeereRepository, PainelService, MaquinasService, LarguraImplementoRepository, TalhoesService, TalhoesRepository, EscalaRepository, RelatoriosService, PlanosRepository,
+      AssistenteService, ConversasRepository, ConsumoDeereRepository, EscalaService, PainelService, MaquinasService, LarguraImplementoRepository, TalhoesService, TalhoesRepository, EscalaRepository, RelatoriosService, PlanosRepository,
       { provide: BANCO, useValue: banco },
       { provide: PROVEDOR_MAQUINAS, useValue: new FakeProvedor(() => AGORA) },
       { provide: MODELO_IA, useValue: ia },
@@ -262,7 +263,7 @@ describe('paginação do assistente', () => {
 
 describe('separarSugestoes', () => {
   it('lida com resposta sem sugestões, com lista e com excesso', () => {
-    expect(separarSugestoes('Só o texto.')).toEqual({ texto: 'Só o texto.', sugestoes: [] });
+    expect(separarSugestoes('Só o texto.')).toEqual({ texto: 'Só o texto.', sugestoes: [], atalhos: [] });
     expect(separarSugestoes('Texto.\n\nSUGESTOES: a | b | c | d').sugestoes).toEqual(['a', 'b', 'c']);
     expect(separarSugestoes('Texto.\nSUGESTOES:\n- um\n- dois').sugestoes).toEqual(['um', 'dois']);
   });
@@ -439,5 +440,36 @@ describe('soOQueConfere', () => {
     const conferir = (t: string) => (t.includes('999') ? ['999'] : []);
     expect(soOQueConfere('Certo: 10 ha.\n\n## Detalhe\nErrado: 999 ha.\n\n## Outro\nCerto de novo.', conferir)).toBe('Certo: 10 ha.\n\n## Outro\nCerto de novo.');
     expect(soOQueConfere('| Máquina | Horas |\n|---|---|\n| A | 999 |', conferir)).toBe('');
+  });
+});
+
+describe('atalhos para as telas do aplicativo', () => {
+  it('a linha ATALHOS vira botões de uma lista fixa e não aparece no texto', async () => {
+    const { separarSugestoes, CortaSugestoes } = await import('./instrucoes.js');
+    const { resolverAtalhos } = await import('./atalhos.js');
+    const bruto = 'É você quem monta, na aba Escala.\nSUGESTOES: Quem está escalado hoje?\nATALHOS: escala | maquina: 8270R - 22 | https://site-de-fora.com | banco';
+    const lido = separarSugestoes(bruto);
+    expect(lido.texto).toBe('É você quem monta, na aba Escala.');
+    expect(lido.sugestoes).toEqual(['Quem está escalado hoje?']);
+    expect(resolverAtalhos(lido.atalhos, [{ id: 'm 1', nome: '8270R - 22' }])).toEqual([
+      { rotulo: 'Abrir a Escala', rota: '/escala' },
+      { rotulo: 'Ver 8270R - 22', rota: '/maquina/m%201' },
+    ]);
+    // Em fluxo, nada depois da primeira marca sai, mesmo se a ordem das duas linhas vier trocada.
+    const corte = new CortaSugestoes();
+    const saiu = corte.empurrar('Resposta.\nATALHOS: escala\nSUGESTOES: outra?') + corte.terminar();
+    expect(saiu).toBe('Resposta.');
+    expect(separarSugestoes('Resposta.\nATALHOS: escala\nSUGESTOES: outra?')).toEqual({ texto: 'Resposta.', sugestoes: ['outra?'], atalhos: ['escala'] });
+  });
+
+  it('a resposta guarda os botões e eles voltam ao reabrir a conversa', async () => {
+    const ia: ModeloIa = { responder: async () => 'É você quem monta a escala, por turno.\nATALHOS: escala' };
+    const servico = await montar(ia);
+    const r = await servico.responder(ANA, null, 'Eu que defino o horário dele?', AGORA);
+    expect(r.atalhos).toEqual([{ rotulo: 'Abrir a Escala', rota: '/escala' }]);
+    expect(r.texto).not.toContain('ATALHOS');
+    const aberta = await servico.abrirConversa(ANA, r.conversaId);
+    expect(aberta.mensagens.at(-1)).toMatchObject({ papel: 'assistente', atalhos: [{ rota: '/escala' }] });
+    expect(aberta.mensagens[0]!.atalhos).toBeUndefined();
   });
 });

@@ -59,7 +59,7 @@ export function useConversa() {
       if (!jaNaTela) setNovas((n) => n + 1);
       setMensagens((atuais) => {
         const ultima = atuais.at(-1);
-        return jaNaTela && ultima?.papel === 'assistente' ? [...atuais.slice(0, -1), { papel: 'assistente', texto: resposta.texto }] : [...atuais, { papel: 'assistente', texto: resposta.texto }];
+        return jaNaTela && ultima?.papel === 'assistente' ? [...atuais.slice(0, -1), { papel: 'assistente', texto: resposta.texto, atalhos: resposta.atalhos }] : [...atuais, { papel: 'assistente', texto: resposta.texto, atalhos: resposta.atalhos }];
       });
       terminarFluxo();
       setSugestoes(resposta.sugestoes);

@@ -289,6 +289,17 @@ Backend (`apps/api/src`)
   grupo sem as somas. Tocar no grupo chama `aoTocarGrupo(ids)`: os ids são as N máquinas mais perto do centro do grupo
   (conta em JS; `getClusterLeaves` não respondeu no iOS). `EscolherMaquina` (`features/mapa`) lista e leva à escolhida.
   Esconder as sem sinal agora filtra os PONTOS (senão contariam no grupo).
+- IA responde sobre o aplicativo, com botões (16/11, pedido do Alisson: "pode responder sobre o app também, com
+  botões para deeplink"): as instruções ganharam o guia COMO O APLICATIVO FUNCIONA (o que cada tela faz e quem pode;
+  manter em dia quando uma tela mudar) e o retrato ganhou `escalaDeHoje`. Depois da linha `SUGESTOES:`, o modelo pode
+  escrever `ATALHOS: escala | maquina: <nome>`; `separarSugestoes` devolve os identificadores e `resolverAtalhos`
+  (`assistente/atalhos.ts`) troca por rótulo e rota de uma LISTA FIXA (escala, relatorios, mapa, maquinas, novo-plano,
+  importar, config, notificacoes, primeiros-passos, e a tela de uma máquina pelo nome). O modelo nunca escreve a rota.
+  `Resposta.atalhos` e `Mensagem.atalhos` (coluna `mensagens.atalhos`, migração 0025: voltam ao reabrir a conversa);
+  no app, `Balao` desenha os botões e navega. `CortaSugestoes` corta na primeira das duas marcas.
+- Linha AB em talhão que a John Deere não conhece (16/11, erro "A John Deere não encontrou esse dado" ao criar talhão
+  no app): `LinhasService.criar` salva a linha e TENTA enviar; se a Deere recusa, a linha continua valendo e a
+  resposta traz `envio: 'so-no-talhio'` (senão `'enviada'`). Antes o erro subia com a linha já gravada.
 - Resposta da IA organizada (15/11): as instruções mandam começar pela frase com o número em **negrito** e, quando há
   várias partes, tabela (até 4 colunas), título `## ` e tópicos `- `; só essa marcação é permitida. No app,
   `features/assistente/formatar.ts` (`lerBlocos`, puro, aguenta resposta pela metade) e `components/TextoFormatado.tsx`

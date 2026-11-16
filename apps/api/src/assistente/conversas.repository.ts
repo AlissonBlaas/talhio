@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
-import type { Conversa, ConversaResumo, Mensagem, PaginaDeConversas } from '@talhio/shared';
+import type { Atalho, Conversa, ConversaResumo, Mensagem, PaginaDeConversas } from '@talhio/shared';
 import { and, desc, eq, lt, sql } from 'drizzle-orm';
 import { BANCO } from '../banco/banco.module.js';
 import type { Banco } from '../banco/banco.js';
@@ -40,20 +40,20 @@ export class ConversasRepository {
     if (!conversa) return null;
     const daConversa = eq(mensagens.conversaId, id);
     const lista = await this.db
-      .select({ papel: mensagens.papel, texto: mensagens.texto, ordem: mensagens.ordem })
+      .select({ papel: mensagens.papel, texto: mensagens.texto, atalhos: mensagens.atalhos, ordem: mensagens.ordem })
       .from(mensagens)
       .where(trecho.antes === undefined ? daConversa : and(daConversa, lt(mensagens.ordem, trecho.antes)))
       .orderBy(desc(mensagens.ordem))
       .limit(trecho.limite);
     lista.reverse();
-    return { ...resumo(conversa), mensagens: lista.map((m): Mensagem => ({ papel: m.papel, texto: m.texto })), primeiraOrdem: lista[0]?.ordem ?? trecho.antes ?? 0 };
+    return { ...resumo(conversa), mensagens: lista.map((m): Mensagem => ({ papel: m.papel, texto: m.texto, ...(m.atalhos?.length ? { atalhos: m.atalhos } : {}) })), primeiraOrdem: lista[0]?.ordem ?? trecho.antes ?? 0 };
   }
 
   /**
    * Grava a pergunta e a resposta juntas (ou nenhuma das duas), criando a conversa se for a primeira.
    * Devolve o id da conversa.
    */
-  async guardarTroca(dono: Dono, conversaId: string | null, pergunta: string, resposta: string): Promise<string> {
+  async guardarTroca(dono: Dono, conversaId: string | null, pergunta: string, resposta: string, atalhos: Atalho[] = []): Promise<string> {
     return this.db.transaction(async (tx) => {
       let id = conversaId;
       let ordem = 0;
@@ -68,7 +68,7 @@ export class ConversasRepository {
       }
       await tx.insert(mensagens).values([
         { id: `m-${randomUUID()}`, conversaId: id, papel: 'usuario', texto: pergunta, ordem },
-        { id: `m-${randomUUID()}`, conversaId: id, papel: 'assistente', texto: resposta, ordem: ordem + 1 },
+        { id: `m-${randomUUID()}`, conversaId: id, papel: 'assistente', texto: resposta, atalhos: atalhos.length > 0 ? atalhos : null, ordem: ordem + 1 },
       ]);
       return id;
     });

@@ -17,6 +17,11 @@ export const LinhaSchema = z.object({
   tipo: z.enum(['reta', 'curva']),
   /** Só na curva: cada passada como lista de [lng, lat]. Nulo na reta (as passadas são calculadas). */
   passadas: z.array(z.array(z.tuple([z.number(), z.number()]))).nullable(),
+  /**
+   * Só na resposta de criar: a linha foi para o Operations Center (`enviada`) ou ficou só no Talhio (`so-no-talhio`:
+   * talhão desenhado ou importado no app, que a John Deere não conhece, ou envio recusado). Nos dois casos está salva.
+   */
+  envio: z.enum(['enviada', 'so-no-talhio']).optional(),
 });
 export type Linha = z.infer<typeof LinhaSchema>;
 export const ListaLinhasSchema = z.array(LinhaSchema);

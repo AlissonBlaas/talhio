@@ -1,0 +1,1 @@
+ALTER TABLE "mensagens" ADD COLUMN "atalhos" jsonb;

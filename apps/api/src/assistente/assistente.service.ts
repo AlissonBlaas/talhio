@@ -10,6 +10,8 @@ import { diaLocal } from '../shared/dia.js';
 import { TalhoesService } from '../talhoes/talhoes.service.js';
 import { ConversasRepository, type Dono } from './conversas.repository.js';
 import { calcular, ContaInvalida, ehConstante } from './calculo.js';
+import { EscalaService } from '../escala/escala.service.js';
+import { resolverAtalhos } from './atalhos.js';
 import { comVariacoes, conferirResposta, existeNasFontes } from './conferencia.js';
 import { CortaSugestoes, MARCA_DOS_DADOS, montarInstrucoes, separarSugestoes } from './instrucoes.js';
 import { IaIndisponivel, IaNaoConfigurada, MODELO_IA, type Ferramentas, type ModeloIa, type MotivoDaFalha } from './modelo-ia.js';
@@ -117,6 +119,7 @@ export class AssistenteService {
     @Inject(TalhoesService) private readonly talhoes: TalhoesService,
     @Inject(RelatoriosService) private readonly relatorios: RelatoriosService,
     @Inject(ConsumoDeereRepository) private readonly consumo: ConsumoDeereRepository,
+    @Inject(EscalaService) private readonly escala: EscalaService,
   ) {}
 
   /**
@@ -145,7 +148,7 @@ export class AssistenteService {
     const retrato = comVariacoes(await this.retratoDaFazenda(dono.orgId, agora));
     const instrucoes = montarInstrucoes(retrato, agora);
 
-    let resposta: { texto: string; sugestoes: string[] };
+    let resposta: { texto: string; sugestoes: string[]; atalhos?: string[] };
     try {
       // Tudo que as consultas devolvem fica anotado: é contra isso (e o retrato) que os números da resposta são conferidos.
       const consultas: unknown[] = [];
@@ -216,8 +219,10 @@ export class AssistenteService {
       throw new BadGatewayException({ codigo: `IA_${motivo.toUpperCase()}`, mensagem: MENSAGEM_DA_FALHA[motivo] + pista });
     }
 
-    const id = await this.conversas.guardarTroca(dono, conversaId, texto, resposta.texto);
-    return { conversaId: id, ...resposta };
+    // O modelo só escolhe identificadores; rótulo e rota saem da lista fixa do servidor.
+    const atalhos = resolverAtalhos(resposta.atalhos ?? [], retrato.maquinas);
+    const id = await this.conversas.guardarTroca(dono, conversaId, texto, resposta.texto, atalhos);
+    return { conversaId: id, texto: resposta.texto, sugestoes: resposta.sugestoes, atalhos };
   }
 
   /** O que o modelo pode buscar sozinho. Sempre da organização de quem perguntou, nunca de outra. */
@@ -375,18 +380,22 @@ export class AssistenteService {
   private readonly retratos = new Map<string, { ate: number; retrato: ReturnType<AssistenteService['montarRetrato']> }>();
 
   private async montarRetrato(orgId: string, agora: Date) {
-    const [painel, maquinas, talhoes, dia, semana] = await Promise.all([
+    const [painel, maquinas, talhoes, dia, semana, escala] = await Promise.all([
       this.painel.montar(orgId),
       this.maquinas.listar(orgId, agora),
       this.talhoes.listar(orgId),
       this.relatorios.montar(orgId, 'dia', undefined, agora),
       this.relatorios.montar(orgId, 'semana', undefined, agora),
+      // A escala não pode derrubar a resposta: sem ela, a IA só fica sem saber quem está em cada turno.
+      this.escala.deHoje(orgId, agora).catch(() => null),
     ]);
     return {
       fazenda: painel.fazendaNome,
       operacaoEmAndamento: painel.operacaoAtual,
       maquinas: maquinas.map(({ posicao: _posicao, numeroSerie: _serie, ...resto }) => resto),
       talhoes: talhoes.map(({ contorno: _contorno, ...resto }) => resto),
+      // Quem opera cada máquina hoje, por turno ("definida": false = sugestão ainda não confirmada pelo administrador).
+      escalaDeHoje: (escala?.itens ?? []).filter((i) => i.operador).map((i) => ({ maquinaNome: i.maquinaNome, turno: i.turno, operador: i.operador, tarefa: i.tarefa, talhao: i.talhaoNome, definida: i.definida, enviada: i.enviadaEm !== null })),
       relatorioDeHoje: dia,
       relatorioDosUltimos7Dias: semana,
     };

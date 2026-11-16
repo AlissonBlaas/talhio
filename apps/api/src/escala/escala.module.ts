@@ -9,5 +9,7 @@ import { EscalaService } from './escala.service.js';
   imports: [MaquinasModule, TalhoesModule],
   controllers: [EscalaController],
   providers: [EscalaService, EscalaRepository],
+  // A IA lê a escala de hoje.
+  exports: [EscalaService],
 })
 export class EscalaModule {}

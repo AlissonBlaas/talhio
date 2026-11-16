@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { BadRequestException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import type { LinhaExterna, ProvedorMaquinas } from '@talhio/deere';
 import { direcaoGraus, distanciaM, NovaLinhaSchema, type Linha } from '@talhio/shared';
 import type { z } from 'zod';
@@ -21,6 +21,8 @@ function paraLinha(externa: LinhaExterna): Linha {
 
 @Injectable()
 export class LinhasService {
+  private readonly log = new Logger('Linhas');
+
   constructor(
     @Inject(PROVEDOR_MAQUINAS) private readonly provedor: ProvedorMaquinas,
     @Inject(LinhasRepository) private readonly repositorio: LinhasRepository,
@@ -53,11 +55,18 @@ export class LinhasService {
     };
     await this.repositorio.salvar(orgId, linha);
     // A linha vai para o Operations Center, que entrega aos monitores. O id serve de chave de idempotência.
-    await this.provedor.enviarLinha(
-      orgId,
-      { id: linha.id, nome: linha.nome, talhaoId: linha.talhaoId, a: [linha.a.lng, linha.a.lat], b: [linha.b.lng, linha.b.lat], padrao: linha.padraoDaFazenda },
-      linha.id,
-    );
-    return linha;
+    // Ela JÁ está salva no Talhio: se a John Deere recusa (talhão desenhado ou importado no app, que ela não conhece;
+    // conta sem permissão de escrita; fora do ar), a linha continua valendo no mapa e no plano, só não vai ao monitor.
+    try {
+      await this.provedor.enviarLinha(
+        orgId,
+        { id: linha.id, nome: linha.nome, talhaoId: linha.talhaoId, a: [linha.a.lng, linha.a.lat], b: [linha.b.lng, linha.b.lat], padrao: linha.padraoDaFazenda },
+        linha.id,
+      );
+      return { ...linha, envio: 'enviada' };
+    } catch (erro) {
+      this.log.warn(`linha ${linha.id} salva, mas não enviada à John Deere: ${erro instanceof Error ? erro.message : String(erro)}`);
+      return { ...linha, envio: 'so-no-talhio' };
+    }
   }
 }

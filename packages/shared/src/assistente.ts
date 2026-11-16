@@ -1,8 +1,17 @@
 import { z } from 'zod';
 
+/**
+ * Um botão embaixo da resposta que leva a uma tela do aplicativo. A rota vem SEMPRE de uma lista fixa do servidor
+ * (o modelo só escolhe o identificador): começa com "/" e é um caminho do próprio app, nunca um endereço de fora.
+ */
+export const AtalhoSchema = z.object({ rotulo: z.string().min(1).max(40), rota: z.string().regex(/^\/[a-z0-9\-/_.~%]*$/i).max(160) });
+export type Atalho = z.infer<typeof AtalhoSchema>;
+
 export const MensagemSchema = z.object({
   papel: z.enum(['usuario', 'assistente']),
   texto: z.string().trim().min(1).max(4000),
+  /** Só nas falas do assistente: telas para abrir a partir da resposta. */
+  atalhos: z.array(AtalhoSchema).max(3).optional(),
 });
 export type Mensagem = z.infer<typeof MensagemSchema>;
 
@@ -19,6 +28,8 @@ export const RespostaSchema = z.object({
   texto: z.string(),
   /** Perguntas de continuação, para aparecerem como atalhos. */
   sugestoes: z.array(z.string()).max(3),
+  /** Telas do aplicativo para abrir a partir desta resposta ("Abrir a Escala"). */
+  atalhos: z.array(AtalhoSchema).max(3).default([]),
 });
 export type Resposta = z.infer<typeof RespostaSchema>;
 

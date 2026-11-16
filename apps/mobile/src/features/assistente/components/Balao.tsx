@@ -1,6 +1,7 @@
 import type { Mensagem } from '@talhio/shared';
+import { useRouter, type Href } from 'expo-router';
 import { memo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { PontosPensando, Surgir } from '@/shared/components/animacoes';
 import { cores, fontes } from '@/shared/theme/tokens';
@@ -14,6 +15,8 @@ import { TextoFormatado, temTabela } from './TextoFormatado';
 export const Balao = memo(function Balao({ mensagem, variant = 'nova' }: { mensagem: Mensagem; variant?: 'nova' | 'antiga' }) {
   const doUsuario = mensagem.papel === 'usuario';
   const Caixa = variant === 'nova' ? Surgir : View;
+  const router = useRouter();
+  const atalhos = doUsuario ? [] : (mensagem.atalhos ?? []);
   return (
     <Caixa style={[styles.balao, doUsuario ? styles.usuario : styles.assistente, !doUsuario && temTabela(mensagem.texto) && styles.comTabela]}>
       {doUsuario ? (
@@ -23,6 +26,16 @@ export const Balao = memo(function Balao({ mensagem, variant = 'nova' }: { mensa
       ) : (
         <TextoFormatado texto={mensagem.texto} />
       )}
+      {/* Telas do aplicativo que a resposta indicou: um toque leva até lá. As rotas vêm de uma lista fixa do servidor. */}
+      {atalhos.length > 0 ? (
+        <View style={styles.atalhos}>
+          {atalhos.map((atalho) => (
+            <Pressable key={atalho.rota} accessibilityRole="link" onPress={() => router.navigate(atalho.rota as Href)} style={({ pressed }) => [styles.atalho, pressed && styles.atalhoApertado]}>
+              <Text style={styles.atalhoTexto}>{atalho.rotulo}</Text>
+            </Pressable>
+          ))}
+        </View>
+      ) : null}
     </Caixa>
   );
 });
@@ -45,6 +58,10 @@ const styles = StyleSheet.create({
   // Com tabela, o balão ocupa a largura da conversa: os números precisam de espaço.
   comTabela: { alignSelf: 'stretch', maxWidth: undefined },
   texto: { fontFamily: fontes.regular, fontSize: 16, lineHeight: 23 },
+  atalhos: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  atalho: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 18, borderRadius: 22, backgroundColor: cores.milho },
+  atalhoApertado: { opacity: 0.7 },
+  atalhoTexto: { fontFamily: fontes.rotulo, fontSize: 15, color: cores.sobreMilho },
   pensando: { alignSelf: 'flex-start', backgroundColor: cores.cartao, borderWidth: 1, borderColor: cores.borda, borderRadius: 22, paddingVertical: 14, paddingHorizontal: 16 },
   pontos: { flexDirection: 'row', alignItems: 'center', gap: 5, height: 10 },
 });
