@@ -2,6 +2,8 @@
 export { MaquinasScreen } from './screens/MaquinasScreen';
 export { MaquinaScreen } from './screens/MaquinaScreen';
 export { StatusPill } from './components/StatusPill';
+// Usado no onboarding: a largura do implemento de todas as máquinas, numa lista só.
+export { PassoLarguras } from './components/PassoLarguras';
 export { usePontosDasMaquinas, type PontosDasMaquinas } from './hooks/usePontosDasMaquinas';
 export { useParadasDaMaquina, useParadasDasMaquinas, useRastrosDasMaquinas, type ParadasDasMaquinas, type RastrosDasMaquinas } from './hooks/useRastrosDasMaquinas';
 export { useMaquinas } from './hooks/useMaquinas';

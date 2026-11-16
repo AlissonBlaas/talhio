@@ -9,7 +9,8 @@ import { RelatoriosService } from '../relatorios/relatorios.service.js';
 import { diaLocal } from '../shared/dia.js';
 import { TalhoesService } from '../talhoes/talhoes.service.js';
 import { ConversasRepository, type Dono } from './conversas.repository.js';
-import { comVariacoes, conferirResposta } from './conferencia.js';
+import { calcular, ContaInvalida, ehConstante } from './calculo.js';
+import { comVariacoes, conferirResposta, existeNasFontes } from './conferencia.js';
 import { CortaSugestoes, MARCA_DOS_DADOS, montarInstrucoes, separarSugestoes } from './instrucoes.js';
 import { IaIndisponivel, IaNaoConfigurada, MODELO_IA, type Ferramentas, type ModeloIa, type MotivoDaFalha } from './modelo-ia.js';
 
@@ -37,6 +38,8 @@ function anotarFalha(erro: unknown, agora: Date) {
     .then(() => appendFile('.dados/assistente-falhas.log', `${linha}\n`))
     .catch(() => undefined);
 }
+
+const PedidoDeConta = z.object({ expressao: z.string().min(1).max(300), descricao: z.string().max(200).optional().default(''), unidade: z.string().max(12).optional() });
 
 /** O que a pessoa vê quando a resposta do modelo traz número que o servidor não consegue confirmar, mesmo na segunda tentativa. */
 export const RESPOSTA_BARRADA = 'Não consegui confirmar nos dados da fazenda todos os números dessa resposta, então não vou mostrá-la. Pergunte de novo de um jeito mais direto: um período (um dia, um mês) e, se quiser, uma máquina.';
@@ -124,11 +127,29 @@ export class AssistenteService {
     try {
       // Tudo que as consultas devolvem fica anotado: é contra isso (e o retrato) que os números da resposta são conferidos.
       const consultas: unknown[] = [];
-      const ferramentas = this.ferramentasDa(dono.orgId, agora, (resultado) => consultas.push(resultado));
+      // As contas que o servidor fez nesta resposta. Cada operando tem que existir nos dados, numa conta anterior ou no
+      // que a pessoa escreveu: assim o resultado é exato e não nasce de número inventado.
+      const calculos: { valor: number; unidade: string | null }[] = [];
+      const perguntas = conversa.filter((m) => m.papel === 'usuario').map((m) => m.texto);
+      const fazerConta = (pedido: unknown) => {
+        const lido = PedidoDeConta.safeParse(pedido);
+        if (!lido.success) return { erro: 'Pedido inválido: informe expressao (só números, + - * / e parênteses) e descricao.' };
+        try {
+          const { resultado, operandos } = calcular(lido.data.expressao);
+          const semFonte = operandos.filter((n) => !ehConstante(n) && !existeNasFontes(n, { dados: [retrato, ...consultas], textos: perguntas, hoje: diaLocal(agora), calculos }));
+          if (semFonte.length > 0) return { erro: `Estes números da expressão não estão nos DADOS, nas consultas nem na pergunta: ${semFonte.join(', ')}. Consulte primeiro e use os números como vieram.` };
+          const valor = Math.round(resultado * 100) / 100;
+          calculos.push({ valor, unidade: lido.data.unidade?.trim() || null });
+          return { descricao: lido.data.descricao, expressao: lido.data.expressao, resultado: valor, unidade: lido.data.unidade ?? '' };
+        } catch (e) {
+          return { erro: e instanceof ContaInvalida ? e.message : 'Não consegui fazer essa conta.' };
+        }
+      };
+      const ferramentas = this.ferramentasDa(dono.orgId, agora, (resultado) => consultas.push(resultado), fazerConta);
       // As regras (sem os DADOS) e o que a pessoa escreveu: ali basta o número existir. Nos dados, ele tem que estar no lugar certo.
       const regras = instrucoes.slice(0, instrucoes.indexOf(MARCA_DOS_DADOS));
       const conferir = (escrito: string) =>
-        conferirResposta(escrito, { dados: [retrato, ...consultas], textos: [regras, ...conversa.filter((m) => m.papel === 'usuario').map((m) => m.texto)], pergunta: texto, hoje: diaLocal(agora) });
+        conferirResposta(escrito, { dados: [retrato, ...consultas], textos: [regras, ...perguntas], pergunta: texto, hoje: diaLocal(agora), calculos });
 
       // Em fluxo, cada linha completa é conferida e sai na hora; a que não confere fecha a porta.
       const porta = aoTrecho ? new PortaDeLinhas(conferir, aoTrecho) : null;
@@ -144,7 +165,7 @@ export class AssistenteService {
       let semFonte = conferir(resposta.texto);
       if (semFonte.length > 0) {
         // Uma segunda chance, dizendo exatamente quais números não têm fonte. A primeira resposta não é mostrada nem guardada.
-        const aviso = `[Conferência automática] A resposta acima NÃO foi mostrada. Estes números não conferem com os DADOS nem com as consultas: ${semFonte.slice(0, 12).join('; ')}. Responda de novo à minha última pergunta. Consulte o que faltar e use só números que vierem dos DADOS ou das consultas, escritos como vieram (pode arredondar), cada um na frase (ou na linha da tabela) que cita a máquina e o período a que ele pertence. Número da fazenda inteira: escreva "a fazenda" ou "no total" na mesma frase. Não faça conta. O que não tiver, diga em uma frase que não tem. Não mencione esta conferência.`;
+        const aviso = `[Conferência automática] A resposta acima NÃO foi mostrada. Estes números não conferem com os DADOS nem com as consultas: ${semFonte.slice(0, 12).join('; ')}. Responda de novo à minha última pergunta. Consulte o que faltar e use só números que vierem dos DADOS ou das consultas, escritos como vieram (pode arredondar), cada um na frase (ou na linha da tabela) que cita a máquina e o período a que ele pertence. Número da fazenda inteira: escreva "a fazenda" ou "no total" na mesma frase. Conta só com a ferramenta calcular, nunca de cabeça. O que não tiver, diga em uma frase que não tem. Não mencione esta conferência.`;
         const segunda = separarSugestoes(await this.ia.responder(instrucoes, [...conversa, { papel: 'assistente', texto: resposta.texto }, { papel: 'usuario', texto: aviso }], ferramentas));
         semFonte = segunda.texto ? conferir(segunda.texto) : semFonte;
         if (segunda.texto && semFonte.length === 0) resposta = segunda;
@@ -173,7 +194,7 @@ export class AssistenteService {
   }
 
   /** O que o modelo pode buscar sozinho. Sempre da organização de quem perguntou, nunca de outra. */
-  private ferramentasDa(orgId: string, agora: Date, anotar: (resultado: unknown) => void = () => undefined): Ferramentas {
+  private ferramentasDa(orgId: string, agora: Date, anotar: (resultado: unknown) => void = () => undefined, fazerConta?: (pedido: unknown) => unknown): Ferramentas {
     const Pedido = z.object({ periodo: PeriodoSchema, data: DiaSchema.optional(), maquinas: z.array(z.string().min(1).max(100)).min(1).max(50).optional() });
     const PedidoDeHistorico = z.object({ meses: z.number().int().min(1).max(24).optional() });
     const PedidoDeAnalise = z.object({ maquina: z.string().min(1).max(100), de: DiaSchema, ate: DiaSchema.optional() });
@@ -183,7 +204,7 @@ export class AssistenteService {
       anotar(pronto);
       return pronto;
     };
-    const consultas: Required<Ferramentas> = {
+    const consultas: Required<Omit<Ferramentas, 'calcular'>> = {
       consultarRelatorio: async (pedido) => {
         const lido = Pedido.safeParse(pedido);
         if (!lido.success) return { erro: 'Pedido inválido: informe periodo (dia, semana ou mes) e, se quiser, data no formato AAAA-MM-DD e maquinas (lista de ids).' };
@@ -209,6 +230,7 @@ export class AssistenteService {
       consultarRelatorio: (pedido) => entregar(consultas.consultarRelatorio(pedido)),
       consultarHistoricoMensal: (pedido) => entregar(consultas.consultarHistoricoMensal(pedido)),
       consultarAnaliseDaMaquina: (pedido) => entregar(consultas.consultarAnaliseDaMaquina(pedido)),
+      ...(fazerConta ? { calcular: async (pedido: unknown) => fazerConta(pedido) } : {}),
     };
   }
 

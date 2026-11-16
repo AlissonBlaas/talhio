@@ -219,13 +219,29 @@ Backend (`apps/api/src`)
   pergunta cita (número de máquina sem o nome dela é recusado; número da fazenda numa frase com máquina exige "a
   fazenda"/"total") e do PERÍODO citado (mês pelo nome, data, hoje, ontem, semana; número de um dia não vale como o do
   mês). Não conferidos: inteiro até 31 sem unidade, ano, contagem de tempo, código colado em letra. Nas regras e no
-  texto do usuário basta o número existir. O modelo NÃO faz conta: `comVariacoes` põe `diferenca` e `variacaoPct` em
+  texto do usuário basta o número existir. `comVariacoes` põe `diferenca` e `variacaoPct` em
   todo par `{ valor, anterior }`. Fluxo: `PortaDeLinhas` (em `assistente.service.ts`) solta cada LINHA assim que ela
   confere, enquanto o modelo ainda escreve; a primeira que não confere fecha a porta, o modelo responde de novo uma
   vez (recebendo a lista com o motivo) e o texto final substitui o da tela; se repetir, vai `RESPOSTA_BARRADA` e a
   falha fica no log. `consultar_analise_da_maquina` devolve `{ maquina: <nome>, de, ate, medicoes: [...] }` para a
   conferência saber de quem é. Limites: o que a frase não diz (período ou máquina omitidos em tudo, inclusive na
   pergunta) não tem como ser conferido; e texto sem número (ex.: "a que mais parou foi X") não é conferido.
+- IA mais solta, com conta feita no servidor (16/11, pedido do Alisson): ferramenta `calcular` (`assistente/calculo.ts`,
+  só números, + - * / e parênteses; nada é executado como código). Cada operando tem que existir nos dados, numa conta
+  anterior ou no que a pessoa escreveu (`existeNasFontes`), salvo contagens até 31 e os fatores 60, 100, 365, 1000 e
+  3600 (`ehConstante`); o resultado entra na conferência como folha `calculado` (vale em qualquer frase, mas com a
+  medida da `unidade` informada). As instruções agora mandam FAZER a conta quando ajuda e deixam interpretar ("pelo que
+  vejo"), sem afirmar causa nem número de referência de fora. Conta de cabeça continua barrada.
+- Áudio como no WhatsApp (16/11): `useGravacaoDeVoz` (substitui `useDitado`) + `CampoDePergunta`. Sem texto, o botão é o
+  microfone: segura para falar (relógio, "Deslize para cancelar", o texto entendido aparece em cima), solta e a pergunta
+  é ENVIADA na hora; arrastar 90 px para a esquerda cancela; toque curto só mostra a dica. Com texto digitado o botão
+  vira enviar. Continua sendo reconhecimento de fala no aparelho (`expo-speech-recognition`, `continuous: true`): o
+  áudio não vai ao servidor e não existe balão de áudio para ouvir de novo. Gesto com `PanResponder`, sem biblioteca nova.
+- Onboarding em 4 passos (16/11): `OnboardingScreen` com John Deere (obrigatório), talhões (`PassoImportar`, de
+  `features/importacao`), WhatsApp (`PassoWhatsapp`) e largura dos implementos (`PassoLarguras`, de `features/maquinas`).
+  Cada passo opcional mostra `SePular` (o que se perde) ANTES dos botões; feito, vira confirmação e o botão é
+  "Continuar"; sem fazer, "Pular por enquanto". Quem já tem a Deere ligada começa no passo 2. A Config ganhou "Rever os
+  primeiros passos" (só administrador). `PortaDoOnboarding` continua levando só quem ainda não conectou a Deere.
 - Resposta da IA organizada (15/11): as instruções mandam começar pela frase com o número em **negrito** e, quando há
   várias partes, tabela (até 4 colunas), título `## ` e tópicos `- `; só essa marcação é permitida. No app,
   `features/assistente/formatar.ts` (`lerBlocos`, puro, aguenta resposta pela metade) e `components/TextoFormatado.tsx`

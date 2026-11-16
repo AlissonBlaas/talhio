@@ -103,6 +103,8 @@ interface Folha {
   nomes: string[];
   /** Período a que o número se refere. Nulo = estado de agora, sem período. */
   periodos: Faixa[] | null;
+  /** Saiu de uma conta feita pelo servidor nesta resposta: não pertence a uma máquina nem a um período. */
+  calculado?: boolean;
 }
 
 const DIA = /^\d{4}-\d{2}-\d{2}$/;
@@ -356,6 +358,19 @@ export interface FontesDaResposta {
   pergunta: string;
   /** Hoje (AAAA-MM-DD), horário de Brasília. */
   hoje: string;
+  /** Resultado de cada conta que o servidor fez nesta resposta (ferramenta `calcular`). */
+  calculos?: { valor: number; unidade?: string | null }[];
+}
+
+/** O número existe em algum lugar do que o servidor entregou ou do que a pessoa escreveu? (Para os operandos de uma conta.) */
+export function existeNasFontes(valor: number, fontes: Pick<FontesDaResposta, 'dados' | 'textos' | 'hoje' | 'calculos'>): boolean {
+  const alvo = Math.abs(valor);
+  const casas = String(alvo).includes('.') ? String(alvo).split('.')[1]!.length : 0;
+  if ((fontes.calculos ?? []).some((c) => igual(arredondar(Math.abs(c.valor), casas), alvo))) return true;
+  for (const [escrito] of fontes.textos.join('\n').matchAll(NUMERO)) if (igual(lerNumero(escrito).valor, alvo)) return true;
+  const folhas: Folha[] = [];
+  for (const dado of fontes.dados) colherFolhas(dado, fontes.hoje, folhas, new Set());
+  return folhas.some((f) => igual(arredondar(Math.abs(f.valor), casas), alvo));
 }
 
 /**
@@ -365,6 +380,11 @@ export function conferirResposta(resposta: string, fontes: FontesDaResposta): st
   const folhas: Folha[] = [];
   const nomesConhecidos = new Set<string>();
   for (const dado of fontes.dados) colherFolhas(dado, fontes.hoje, folhas, nomesConhecidos);
+  for (const conta of fontes.calculos ?? []) {
+    // "R$" e unidade vazia não prendem a medida; as outras sim ("%", "L", "h"...).
+    const medida = conta.unidade && !/^r\$?$/i.test(conta.unidade.trim()) ? classeDaUnidade(conta.unidade) : { classe: null, tempo: null };
+    folhas.push({ valor: Math.abs(conta.valor), classe: medida.classe === 'outra' ? null : medida.classe, tempo: medida.tempo, nomes: [], periodos: null, calculado: true });
+  }
   const padroes = new Map<string, RegExp>();
   for (const nome of nomesConhecidos) {
     const padrao = padraoDoNome(nome);
@@ -397,6 +417,8 @@ export function conferirResposta(resposta: string, fontes: FontesDaResposta): st
     }
 
     const serve = (folha: Folha) => {
+      // A conta foi feita pelo servidor com números já conferidos: vale em qualquer frase.
+      if (folha.calculado) return { deQuem: true, deQuando: true };
       const deQuem = folha.nomes.every((n) => citados.includes(n)) && (folha.nomes.length > 0 || citados.length === 0 || daFazenda);
       return { deQuem, deQuando: periodoBate(folha, mencoes, fontes.hoje) };
     };

@@ -26,6 +26,8 @@ export interface Ferramentas {
   consultarHistoricoMensal?(pedido: unknown): Promise<unknown>;
   /** Todas as medições do Analisador da Máquina de uma máquina num período de até 30 dias. Devolve a análise ou `{ erro }`. */
   consultarAnaliseDaMaquina?(pedido: unknown): Promise<unknown>;
+  /** Faz uma conta (+ - * /) com números que já vieram dos dados ou da pergunta. Devolve o resultado ou `{ erro }`. */
+  calcular?(pedido: unknown): Promise<unknown>;
 }
 
 export interface ModeloIa {
@@ -78,18 +80,34 @@ const FERRAMENTA_ANALISE = {
   },
 };
 
+const FERRAMENTA_CALCULAR = {
+  name: 'calcular',
+  description:
+    'Faz uma conta no servidor e devolve o resultado exato. Use SEMPRE que precisar de um número que não vem pronto: somar máquinas ou dias, diferença, média, percentual de um total, custo (litros x preço que a pessoa informou), quanto falta, ritmo por hora. Os números da expressão têm que ter vindo dos DADOS, de uma consulta, de outra conta ou do que a pessoa escreveu; pode usar também contagens pequenas (até 31) e os fatores 60, 100 e 1000. Pode chamar várias vezes.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      expressao: { type: 'string', description: 'A conta, só com números, + - * / e parênteses. Decimal com ponto. Ex.: "(3900 + 3450) / 2" ou "357.5 * 6.2".' },
+      descricao: { type: 'string', description: 'O que a conta é, em poucas palavras. Ex.: "média de litros das duas máquinas em outubro".' },
+      unidade: { type: 'string', description: 'Unidade do resultado: "L", "h", "ha", "L/h", "L/ha", "%", "R$", "min", "km/h" ou vazio.' },
+    },
+    required: ['expressao', 'descricao'],
+  },
+};
+
 /** As ferramentas que o servidor oferece nesta resposta e quem atende cada uma. */
 function ferramentasOferecidas(ferramentas: Ferramentas) {
-  const lista: { definicao: typeof FERRAMENTA_RELATORIO | typeof FERRAMENTA_HISTORICO | typeof FERRAMENTA_ANALISE; atender: (pedido: unknown) => Promise<unknown> }[] = [
+  const lista: { definicao: typeof FERRAMENTA_RELATORIO | typeof FERRAMENTA_HISTORICO | typeof FERRAMENTA_ANALISE | typeof FERRAMENTA_CALCULAR; atender: (pedido: unknown) => Promise<unknown> }[] = [
     { definicao: FERRAMENTA_RELATORIO, atender: (p) => ferramentas.consultarRelatorio(p) },
   ];
   if (ferramentas.consultarHistoricoMensal) lista.push({ definicao: FERRAMENTA_HISTORICO, atender: (p) => ferramentas.consultarHistoricoMensal!(p) });
   if (ferramentas.consultarAnaliseDaMaquina) lista.push({ definicao: FERRAMENTA_ANALISE, atender: (p) => ferramentas.consultarAnaliseDaMaquina!(p) });
+  if (ferramentas.calcular) lista.push({ definicao: FERRAMENTA_CALCULAR, atender: (p) => ferramentas.calcular!(p) });
   return lista;
 }
 
 /** Quantas vezes o modelo pode pedir dados antes de responder. */
-const RODADAS_DE_CONSULTA = 6;
+const RODADAS_DE_CONSULTA = 8;
 
 /** Sem chave configurada: toda pergunta falha com um erro claro. */
 export class IaDesligada implements ModeloIa {

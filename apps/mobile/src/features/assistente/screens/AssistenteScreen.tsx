@@ -13,7 +13,7 @@ import { Historico } from '../components/Historico';
 import { CampoDePergunta } from '../components/CampoDePergunta';
 import { Inicio } from '../components/Inicio';
 import { useConversa } from '../hooks/useConversa';
-import { useDitado } from '../hooks/useDitado';
+import { useGravacaoDeVoz } from '../hooks/useGravacaoDeVoz';
 import { useHistorico } from '../hooks/useHistorico';
 
 type Fala = { chave: string; mensagem: Mensagem };
@@ -22,8 +22,6 @@ export function AssistenteScreen() {
   const alturaBarra = useAlturaDaBarra();
   const conversa = useConversa();
   const [rascunho, setRascunho] = useState('');
-  // O que a pessoa fala vai para o campo: ela confere (nome de talhão, número) e então envia.
-  const ditado = useDitado(setRascunho);
   const [verHistorico, setVerHistorico] = useState(false);
   const historico = useHistorico(verHistorico);
   const lista = useRef<ComponentRef<typeof FlatList<Fala>>>(null);
@@ -35,13 +33,14 @@ export function AssistenteScreen() {
   );
 
   const enviar = (texto: string) => {
-    if (ditado.ouvindo) ditado.alternar();
     setVerHistorico(false);
     conversa.perguntar(texto);
     setRascunho('');
     // Quem estava lendo lá em cima volta para o fim ao perguntar.
     lista.current?.scrollToOffset({ offset: 0, animated: true });
   };
+  // Áudio como no WhatsApp: segura o microfone, fala e solta; o que foi dito vira a pergunta e já é enviado.
+  const voz = useGravacaoDeVoz(enviar);
   const vazia = conversa.mensagens.length === 0 && !conversa.pensando && !conversa.abrindo;
 
   return (
@@ -67,7 +66,7 @@ export function AssistenteScreen() {
             setVerHistorico(false);
             conversa.novaConversa();
             setRascunho('');
-            ditado.limparAviso();
+            voz.limparAviso();
           }}
           style={[styles.nova, vazia && !verHistorico && styles.novaDesligada]}>
           <Icone nome="mais" cor={cores.textoSobreEscuro} tamanho={18} espessura={2} />
@@ -143,8 +142,8 @@ export function AssistenteScreen() {
       )}
 
       <View style={[styles.rodape, { paddingBottom: alturaBarra + 10 }]}>
-        {ditado.aviso ? <Text style={styles.aviso}>{ditado.aviso}</Text> : null}
-        <CampoDePergunta texto={rascunho} aoMudar={setRascunho} aoEnviar={() => enviar(rascunho)} aoTocarMicrofone={ditado.alternar} ouvindo={ditado.ouvindo} ocupado={conversa.ocupado} />
+        {voz.aviso ? <Text style={styles.aviso}>{voz.aviso}</Text> : null}
+        <CampoDePergunta texto={rascunho} aoMudar={setRascunho} aoEnviar={() => enviar(rascunho)} voz={voz} ocupado={conversa.ocupado} />
       </View>
     </KeyboardAvoidingView>
   );

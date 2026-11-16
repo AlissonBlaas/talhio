@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -15,6 +16,7 @@ export function ConfigScreen() {
   // Tela empilhada por cima das abas (aberta pelo menu da conta): sem barra de baixo para reservar espaço.
   const { bottom } = useSafeAreaInsets();
   const sessao = useSessao();
+  const router = useRouter();
   const sair = useSair();
   const { conexao, atualizar } = useConexaoDeere();
   const { desconectar, desconectando } = useMudarConexao();
@@ -56,6 +58,13 @@ export function ConfigScreen() {
               </Pressable>
             ) : null}
           </Secao>
+
+          {admin ? (
+            <Pressable accessibilityRole="button" onPress={() => router.push('/onboarding')} style={styles.passos}>
+              <Text style={styles.passosTexto}>Rever os primeiros passos</Text>
+              <Text style={styles.passosApoio}>John Deere, talhões, WhatsApp e largura dos implementos</Text>
+            </Pressable>
+          ) : null}
 
           <Pressable accessibilityRole="button" onPress={confirmarSaida} style={styles.sair}>
             <Icone nome="sair" cor={cores.mata} tamanho={20} />
@@ -100,6 +109,9 @@ const styles = StyleSheet.create({
   linhaValor: { flex: 1, textAlign: 'right', fontFamily: fontes.rotuloLeve, fontSize: 15, color: cores.texto },
   perigo: { minHeight: 48, borderRadius: 24, borderWidth: 2, borderColor: cores.perigo, alignItems: 'center', justifyContent: 'center' },
   perigoTexto: { fontFamily: fontes.rotulo, fontSize: 16, color: cores.perigoTexto },
+  passos: { minHeight: 64, borderRadius: 26, borderWidth: 1, borderColor: cores.borda, backgroundColor: cores.cartao, paddingHorizontal: 18, paddingVertical: 12, justifyContent: 'center', gap: 2 },
+  passosTexto: { fontFamily: fontes.rotulo, fontSize: 16, color: cores.texto },
+  passosApoio: { fontFamily: fontes.regular, fontSize: 13, lineHeight: 18, color: cores.textoSuave },
   sair: { minHeight: 54, borderRadius: 27, borderWidth: 2, borderColor: cores.mata, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   sairTexto: { fontFamily: fontes.rotulo, fontSize: 17, color: cores.mata },
 });

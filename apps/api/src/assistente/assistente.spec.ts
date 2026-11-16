@@ -139,7 +139,7 @@ describe('ferramentas de outras épocas', () => {
     const { ia, visto } = iaDeTeste();
     await (await montar(ia)).responder(ANA, null, 'Oi', AGORA);
     const instrucoes = visto[0]!.instrucoes;
-    for (const trecho of ['consultar_historico_mensal', 'consultar_analise_da_maquina', '**negrito**', 'tabela', '"## "', 'Nunca invente', 'CONSULTE ANTES DE ESCREVER', 'Respostas anteriores da conversa não são fonte']) expect(instrucoes).toContain(trecho);
+    for (const trecho of ['consultar_historico_mensal', 'consultar_analise_da_maquina', '**negrito**', 'tabela', '"## "', 'Nunca invente', 'CONSULTE ANTES DE ESCREVER', 'Respostas anteriores da conversa não são fonte', 'ferramenta calcular', 'Pode interpretar']) expect(instrucoes).toContain(trecho);
     expect(instrucoes).not.toContain('Sem markdown');
   });
 });
@@ -331,6 +331,37 @@ describe('conferência dos números', () => {
     const r = await (await montar(ia)).responder(ANA, null, 'Como foi outubro?', AGORA);
     expect(outubro.indicadores.areaHa).toHaveProperty('diferenca');
     expect(r.texto).toContain('Outubro teve');
+  });
+});
+
+describe('contas da IA', () => {
+  it('a conta é feita no servidor, com números dos dados e o preço que a pessoa informou, e o resultado vale na resposta', async () => {
+    let custo: any;
+    let media: any;
+    let inventada: any;
+    const ia: ModeloIa = {
+      responder: async (_instrucoes, _conversa, ferramentas) => {
+        const outubro: any = await ferramentas?.consultarRelatorio({ periodo: 'mes', data: '2026-10-15' });
+        const [a, b] = outubro.porMaquina.filter((m: any) => m.horas > 0);
+        custo = await ferramentas?.calcular?.({ expressao: `${a.horas} * 6.2`, descricao: 'horas vezes o preço informado', unidade: 'R$' });
+        media = await ferramentas?.calcular?.({ expressao: `(${a.horas} + ${b.horas}) / 2`, descricao: 'média de horas das duas máquinas', unidade: 'h' });
+        // Operando que não está em lugar nenhum: a conta é recusada.
+        inventada = await ferramentas?.calcular?.({ expressao: '98765 * 2', descricao: 'número inventado' });
+        const br = (n: number) => String(n).replace('.', ',');
+        return `Em outubro, a R$ 6,20 por hora que você informou, o ${a.nome} custou R$ ${br(custo.resultado)}. A média das duas máquinas foi ${br(media.resultado)} h.`;
+      },
+    };
+    const r = await (await montar(ia)).responder(ANA, null, 'Quanto custou outubro a R$ 6,20 por hora?', AGORA);
+    expect(custo.resultado).toBeGreaterThan(0);
+    expect(media).toMatchObject({ unidade: 'h' });
+    expect(inventada).toMatchObject({ erro: expect.stringContaining('98765') });
+    expect(r.texto).toContain('A média das duas máquinas foi');
+  });
+
+  it('conta de cabeça (sem a ferramenta) continua barrada', async () => {
+    const ia: ModeloIa = { responder: async () => 'Somando tudo, a fazenda fez 123.456 ha.' };
+    const r = await (await montar(ia)).responder(ANA, null, 'Quanto no total?', AGORA);
+    expect(r.texto).toBe(RESPOSTA_BARRADA);
   });
 });
 
