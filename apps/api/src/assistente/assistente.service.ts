@@ -138,50 +138,82 @@ export class AssistenteService {
   }
 
   /**
-   * Combustível e horas de motor por mês, da fazenda e de cada máquina, dos últimos `meses` meses (contando o atual).
-   * Sai dos dias guardados do Analisador da Máquina; toda soma é feita aqui, o modelo só lê.
+   * Um mês por linha, dos últimos `meses` meses (contando o atual), com o total do período já somado. Cada mês é o
+   * MESMO relatório da aba Relatórios (área, horas, litros, consumo, tempo parado, cada máquina), então o número que a
+   * IA diz é o que a tela mostra. O detalhe do motor (trabalhando, ocioso, transporte) vem dos dias guardados do
+   * Analisador da Máquina. Toda soma é feita aqui; o modelo só lê.
    */
   async historicoMensal(orgId: string, meses: number, agora = new Date()) {
     const hoje = diaLocal(agora);
-    const inicio = new Date(`${hoje.slice(0, 7)}-01T12:00:00Z`);
-    inicio.setUTCMonth(inicio.getUTCMonth() - (meses - 1));
-    const desde = inicio.toISOString().slice(0, 10);
-    const [linhas, maquinas] = await Promise.all([this.consumo.porMes(orgId, desde), this.maquinas.listar(orgId, agora)]);
-    if (linhas.length === 0) return { desde, ate: hoje, meses: [], aviso: 'Não há histórico mensal de combustível guardado para este período. Para área e horas de um mês, use consultar_relatorio com periodo "mes".' };
-
-    const nomeDe = new Map(maquinas.map((m) => [m.id, m.nome]));
+    const lista: { mes: string; ultimoDia: string }[] = [];
+    for (let n = meses - 1; n >= 0; n--) {
+      const primeiro = new Date(`${hoje.slice(0, 7)}-01T12:00:00Z`);
+      primeiro.setUTCMonth(primeiro.getUTCMonth() - n);
+      const ultimo = new Date(primeiro);
+      ultimo.setUTCMonth(ultimo.getUTCMonth() + 1, 0);
+      const fim = ultimo.toISOString().slice(0, 10);
+      lista.push({ mes: fim.slice(0, 7), ultimoDia: fim > hoje ? hoje : fim });
+    }
+    const desde = `${lista[0]!.mes}-01`;
     const casas = (valor: number, n = 1) => Math.round(valor * 10 ** n) / 10 ** n;
-    const resumir = (t: Omit<ConsumoDoMes, 'mes' | 'maquinaId' | 'dias'>) => ({
-      litros: casas(t.litros),
-      horasMotor: casas(t.horasMotor),
-      // Litros e horas vêm da mesma leitura, então o L/h do mês é a divisão direta.
-      consumoLPorHora: t.horasMotor > 0 ? casas(t.litros / t.horasMotor) : null,
-      litrosTrabalhando: casas(t.litrosTrabalhando),
-      litrosOcioso: casas(t.litrosOcioso),
-      litrosTransporte: casas(t.litrosTransporte),
-      horasTrabalhando: casas(t.horasTrabalhando),
-      horasOcioso: casas(t.horasOcioso),
-      horasTransporte: casas(t.horasTransporte),
+
+    // Três meses de cada vez: cada relatório de mês lê centenas de dias de máquina.
+    const relatorios: Awaited<ReturnType<RelatoriosService['montar']>>[] = [];
+    for (let i = 0; i < lista.length; i += 3) relatorios.push(...(await Promise.all(lista.slice(i, i + 3).map((m) => this.relatorios.montar(orgId, 'mes', m.ultimoDia, agora)))));
+    const doMotor = new Map<string, ConsumoDoMes[]>();
+    for (const linha of await this.consumo.porMes(orgId, desde).catch(() => [] as ConsumoDoMes[])) doMotor.set(linha.mes, [...(doMotor.get(linha.mes) ?? []), linha]);
+    const somaDoMotor = (linhas: ConsumoDoMes[], campo: 'litrosTrabalhando' | 'litrosOcioso' | 'litrosTransporte' | 'horasTrabalhando' | 'horasOcioso' | 'horasTransporte') => casas(linhas.reduce((soma, l) => soma + l[campo], 0));
+
+    const porMes = lista.map(({ mes }, i) => {
+      const r = relatorios[i]!;
+      const motor = doMotor.get(mes) ?? [];
+      return {
+        mes,
+        // O mês atual ainda está em andamento: comparar com um mês fechado exige dizer isso.
+        emAndamento: mes === hoje.slice(0, 7),
+        de: r.inicio,
+        ate: r.fim,
+        areaHa: r.indicadores.areaHa.valor,
+        areaForaDosTalhoesHa: r.indicadores.areaForaDosTalhoesHa,
+        horas: r.indicadores.horas.valor,
+        litros: r.indicadores.litros.valor,
+        consumoLPorHora: r.indicadores.consumoLPorHora.valor,
+        consumoLPorHa: r.indicadores.consumoLPorHa.valor,
+        paradoMin: r.indicadores.paradoMin.valor,
+        litrosEstimados: r.combustivelEstimado,
+        // Só quando o Analisador da Máquina tem o mês guardado; nulo = sem esse detalhe.
+        motorPorEstado:
+          motor.length > 0
+            ? {
+                litrosTrabalhando: somaDoMotor(motor, 'litrosTrabalhando'),
+                litrosOcioso: somaDoMotor(motor, 'litrosOcioso'),
+                litrosTransporte: somaDoMotor(motor, 'litrosTransporte'),
+                horasTrabalhando: somaDoMotor(motor, 'horasTrabalhando'),
+                horasOcioso: somaDoMotor(motor, 'horasOcioso'),
+                horasTransporte: somaDoMotor(motor, 'horasTransporte'),
+              }
+            : null,
+        porMaquina: r.porMaquina.map((m) => ({ maquinaId: m.maquinaId, nome: m.nome, areaHa: m.areaHa, horas: m.horas, litros: m.litros, consumoLPorHora: m.consumoLPorHora, consumoLPorHa: m.consumoLPorHa, paradoMin: m.paradoMin })),
+      };
     });
-    const porMes = new Map<string, ConsumoDoMes[]>();
-    for (const linha of linhas) porMes.set(linha.mes, [...(porMes.get(linha.mes) ?? []), linha]);
-    const campos = ['litros', 'horasMotor', 'litrosTrabalhando', 'litrosOcioso', 'litrosTransporte', 'horasTrabalhando', 'horasOcioso', 'horasTransporte'] as const;
+
+    // Total do período somado aqui, para o modelo não somar doze números. Litros: só os meses com leitura.
+    const comLitros = porMes.filter((m) => m.litros !== null);
     return {
       desde,
       ate: hoje,
-      fonte: 'Analisador da Máquina da John Deere (número do motor), somado por mês',
-      meses: [...porMes].map(([mes, doMes]) => {
-        const total = Object.fromEntries(campos.map((c) => [c, doMes.reduce((soma, l) => soma + l[c], 0)])) as Record<(typeof campos)[number], number>;
-        return {
-          mes,
-          // O mês atual ainda está em andamento: comparar com um mês fechado exige dizer isso.
-          emAndamento: mes === hoje.slice(0, 7),
-          ...resumir(total),
-          porMaquina: doMes
-            .map((l) => ({ maquinaId: l.maquinaId, nome: nomeDe.get(l.maquinaId) ?? 'Máquina que saiu da frota', diasComLeitura: l.dias, ...resumir(l) }))
-            .sort((a, b) => b.litros - a.litros),
-        };
-      }),
+      fonte: 'Os mesmos relatórios mensais da aba Relatórios, um por mês',
+      total: {
+        meses: porMes.length,
+        areaHa: casas(porMes.reduce((soma, m) => soma + m.areaHa, 0)),
+        areaForaDosTalhoesHa: casas(porMes.reduce((soma, m) => soma + m.areaForaDosTalhoesHa, 0)),
+        horas: casas(porMes.reduce((soma, m) => soma + m.horas, 0)),
+        paradoMin: porMes.reduce((soma, m) => soma + m.paradoMin, 0),
+        litros: comLitros.length > 0 ? comLitros.reduce((soma, m) => soma + (m.litros ?? 0), 0) : null,
+        mesesSemLeituraDeCombustivel: porMes.filter((m) => m.litros === null).map((m) => m.mes),
+        mesesSemArea: porMes.filter((m) => m.areaHa === 0).map((m) => m.mes),
+      },
+      meses: porMes,
     };
   }
 

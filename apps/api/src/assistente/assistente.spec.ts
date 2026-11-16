@@ -75,42 +75,45 @@ describe('ferramenta de relatório', () => {
 });
 
 describe('ferramentas de outras épocas', () => {
-  it('histórico mensal: soma litros e horas por mês e por máquina no servidor, com o nome da máquina', async () => {
+  it('histórico mensal: um mês por linha com os números da aba Relatórios, o total já somado e o detalhe do motor', async () => {
     let historico: any;
-    let vazio: any;
     let invalido: unknown;
     const ia: ModeloIa = {
-      responder: async (instrucoes, _conversa, ferramentas) => {
-        const id = /"id":"([^"]+)"/.exec(instrucoes.slice(instrucoes.indexOf('"maquinas"')))![1]!;
+      responder: async (_instrucoes, _conversa, ferramentas) => {
         historico = await ferramentas?.consultarHistoricoMensal?.({ meses: 3 });
-        vazio = await ferramentas?.consultarHistoricoMensal?.({ meses: 1 });
         invalido = await ferramentas?.consultarHistoricoMensal?.({ meses: 99 });
-        return `ok ${id}`;
+        return 'ok';
       },
     };
     const fake = new FakeProvedor(() => AGORA);
     const [primeira] = await fake.listarMaquinas();
-    const linha = (dia: string, litros: number, horasMotor: number, maquinaId = primeira!.id) => ({ orgId: 'org-demo', maquinaId, dia, litros, horasMotor, litrosTrabalhando: litros - 10, litrosOcioso: 10, litrosTransporte: 0, horasTrabalhando: horasMotor - 1, horasOcioso: 1, horasTransporte: 0, fonte: 'api' });
-    await (
-      await montar(ia, async (banco) => {
-        await banco.insert(combustivelImportado).values([linha('2026-08-15', 9999, 10), linha('2026-09-10', 200, 10), linha('2026-09-11', 300, 10), linha('2026-10-02', 440, 20), linha('2026-10-02', 60, 5, 'maquina-vendida')]);
-      })
-    ).responder(ANA, null, 'Compare setembro e outubro', AGORA);
+    const linha = (dia: string, litros: number, horasMotor: number) => ({ orgId: 'org-demo', maquinaId: primeira!.id, dia, litros, horasMotor, litrosTrabalhando: litros - 10, litrosOcioso: 10, litrosTransporte: 0, horasTrabalhando: horasMotor - 1, horasOcioso: 1, horasTransporte: 0, fonte: 'api' });
+    const service = await montar(ia, async (banco) => {
+      await banco.insert(combustivelImportado).values([linha('2026-08-15', 9999, 10), linha('2026-10-02', 440, 20), linha('2026-10-03', 60, 5)]);
+    });
+    await service.responder(ANA, null, 'Como foi o ano?', AGORA);
 
-    // 3 meses contando novembro: agosto fica de fora.
+    // 3 meses contando novembro, do dia 1 ao último dia; o atual vai até hoje.
     expect(historico.desde).toBe('2026-09-01');
-    expect(historico.meses.map((m: any) => [m.mes, m.litros, m.horasMotor, m.consumoLPorHora, m.emAndamento])).toEqual([
-      ['2026-09', 500, 20, 25, false],
-      ['2026-10', 500, 25, 20, false],
+    expect(historico.meses.map((m: any) => [m.mes, m.de, m.ate, m.emAndamento])).toEqual([
+      ['2026-09', '2026-09-01', '2026-09-30', false],
+      ['2026-10', '2026-10-01', '2026-10-31', false],
+      ['2026-11', '2026-11-01', '2026-11-10', true],
     ]);
-    expect(historico.meses[1].porMaquina).toMatchObject([
-      { nome: primeira!.nome, litros: 440, horasMotor: 20, consumoLPorHora: 22, horasOcioso: 1, diasComLeitura: 1 },
-      { nome: 'Máquina que saiu da frota', litros: 60 },
-    ]);
-    // Novembro não tem leitura guardada: o modelo recebe o aviso, não um zero.
-    expect(vazio).toMatchObject({ meses: [], aviso: expect.stringContaining('Não há histórico') });
+    // Cada mês é o relatório mensal da tela: os mesmos números de RelatoriosService.
+    const relatorios = service['relatorios'];
+    const outubro = await relatorios.montar('org-demo', 'mes', '2026-10-31', AGORA);
+    expect(historico.meses[1]).toMatchObject({ areaHa: outubro.indicadores.areaHa.valor, horas: outubro.indicadores.horas.valor, litros: outubro.indicadores.litros.valor, paradoMin: outubro.indicadores.paradoMin.valor });
+    expect(historico.meses[1].porMaquina.map((m: any) => [m.nome, m.areaHa])).toEqual(outubro.porMaquina.map((m) => [m.nome, m.areaHa]));
+    expect(outubro.indicadores.areaHa.valor).toBeGreaterThan(0);
+    // O total do período vem somado do servidor.
+    const soma = (campo: string) => Math.round(historico.meses.reduce((t: number, m: any) => t + m[campo], 0) * 10) / 10;
+    expect(historico.total).toMatchObject({ meses: 3, areaHa: soma('areaHa'), horas: soma('horas') });
+    // Detalhe do motor só no mês que tem leitura guardada; nos outros é nulo, não zero.
+    expect(historico.meses[1].motorPorEstado).toEqual({ litrosTrabalhando: 480, litrosOcioso: 20, litrosTransporte: 0, horasTrabalhando: 23, horasOcioso: 2, horasTransporte: 0 });
+    expect(historico.meses[0].motorPorEstado).toBeNull();
     expect(invalido).toMatchObject({ erro: expect.stringContaining('Pedido inválido') });
-  });
+  }, 60_000);
 
   it('relatório só de algumas máquinas e análise de uma máquina, sempre da própria organização', async () => {
     let soUma: any;
@@ -136,7 +139,7 @@ describe('ferramentas de outras épocas', () => {
     const { ia, visto } = iaDeTeste();
     await (await montar(ia)).responder(ANA, null, 'Oi', AGORA);
     const instrucoes = visto[0]!.instrucoes;
-    for (const trecho of ['consultar_historico_mensal', 'consultar_analise_da_maquina', '**negrito**', 'tabela', '"## "', 'Nunca invente']) expect(instrucoes).toContain(trecho);
+    for (const trecho of ['consultar_historico_mensal', 'consultar_analise_da_maquina', '**negrito**', 'tabela', '"## "', 'Nunca invente', 'CONSULTE ANTES DE ESCREVER', 'Respostas anteriores da conversa não são fonte']) expect(instrucoes).toContain(trecho);
     expect(instrucoes).not.toContain('Sem markdown');
   });
 });

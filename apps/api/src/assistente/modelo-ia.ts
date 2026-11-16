@@ -53,11 +53,11 @@ const FERRAMENTA_RELATORIO = {
 const FERRAMENTA_HISTORICO = {
   name: 'consultar_historico_mensal',
   description:
-    'Busca, de uma vez, o combustível (litros) e as horas de motor de cada mês e de cada máquina, dos últimos meses: total, trabalhando, ocioso e em transporte, com o consumo médio em L/h. São os números do motor (os mesmos do Operations Center). Use para comparar meses, ver tendência, achar o mês ou a máquina que mais gastou, ou responder sobre um período longo. Não traz área (hectares): para área de um mês, use consultar_relatorio.',
+    'Busca, de uma vez, um resumo de cada mês dos últimos meses e o TOTAL do período já somado: área trabalhada (ha), área fora dos talhões, horas, litros, consumo (L/h e L/ha), tempo parado, o detalhe do motor (trabalhando, ocioso, transporte) e o resultado de cada máquina em cada mês. São os mesmos números da aba Relatórios. É OBRIGATÓRIA para qualquer pergunta sobre o ano, sobre vários meses, sobre "até agora", para comparar meses ou achar o melhor/pior mês. Use o campo "total" para o total do período; não some os meses por conta própria.',
   input_schema: {
     type: 'object' as const,
     properties: {
-      meses: { type: 'integer', minimum: 1, maximum: 24, description: 'Quantos meses para trás, contando o mês atual. Padrão: 6.' },
+      meses: { type: 'integer', minimum: 1, maximum: 24, description: 'Quantos meses para trás, contando o mês atual. Padrão: 6. Para "este ano", use o número do mês atual (ex.: em novembro, 11).' },
     },
     required: [],
   },

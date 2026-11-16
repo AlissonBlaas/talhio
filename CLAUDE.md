@@ -203,6 +203,12 @@ Backend (`apps/api/src`)
   sem área usa o que está guardado (`config.areas`). Só existe área de operação DOCUMENTADA no Operations Center
   (plantio, aplicação, colheita); trator sem documentação não tem. O corte de 120 dias de `atividade_deere` e os 14
   dias do export ponto a ponto continuam como estavam. NÃO conferido contra a Deere real.
+- IA inventou números do ano (16/11, o Alisson: "a IA não tem que ficar se corrigindo, tem que pegar os dados corretos"):
+  `consultar_historico_mensal` agora devolve, por mês, os números do MESMO relatório mensal da aba Relatórios
+  (`RelatoriosService.montar('mes')`: área, área fora dos talhões, horas, litros, L/h, L/ha, parado, cada máquina), o
+  detalhe do motor por estado (`motorPorEstado`, nulo sem leitura) e o `total` do período somado no servidor. As
+  instruções mandam consultar ANTES de escrever, proíbem número que não veio dos DADOS ou de consulta da própria
+  resposta (resposta anterior da conversa não é fonte; célula sem dado vira "—") e reduzem o "Corrigindo:" a uma frase.
 - Resposta da IA organizada (15/11): as instruções mandam começar pela frase com o número em **negrito** e, quando há
   várias partes, tabela (até 4 colunas), título `## ` e tópicos `- `; só essa marcação é permitida. No app,
   `features/assistente/formatar.ts` (`lerBlocos`, puro, aguenta resposta pela metade) e `components/TextoFormatado.tsx`
