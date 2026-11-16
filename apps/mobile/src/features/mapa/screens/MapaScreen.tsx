@@ -9,6 +9,7 @@ import { Carregando, ErroComTentarDeNovo } from '@/shared/components/estado-tela
 import { Icone } from '@/shared/components/Icone';
 import { cores, fontes } from '@/shared/theme/tokens';
 
+import { EscolherMaquina } from '../components/EscolherMaquina';
 import { MaquinasForaDaTela } from '../components/MaquinasForaDaTela';
 import { PainelSelecao } from '../components/PainelSelecao';
 import { useMapaDaFazenda } from '../hooks/useMapaDaFazenda';
@@ -25,6 +26,8 @@ export function MapaScreen() {
   const controle = useRef<MapaControle>(null);
   // Com muitas máquinas guardadas, as sem sinal atrapalham achar quem está no campo: dá para tirar do mapa.
   const [esconderSemSinal, setEsconderSemSinal] = useState(false);
+  // Tocaram num grupo (máquinas no mesmo lugar): fica aberto até a pessoa escolher uma ou fechar.
+  const [grupo, setGrupo] = useState<string[]>([]);
   const doEstado = (status: 'trabalhando' | 'parada' | 'sem-sinal') => mapa.maquinas.filter((m) => m.status === status);
   const trabalhando = doEstado('trabalhando');
   const paradas = doEstado('parada');
@@ -84,7 +87,7 @@ export function MapaScreen() {
         <CamadaTalhoes geo={mapa.talhoesGeo} selecionadoId={mapa.talhaoSelecionadoId} rotulos={mapa.rotulos} aoTocar={irParaTalhao} />
         <CamadaPassadas geo={mapa.linhaGeo} />
         <CamadaRastros geo={mapa.rastrosGeo} paradas={mapa.paradasGeo} selecionadaId={mapa.maquinaSelecionadaId} />
-        <CamadaMaquinas geo={mapa.maquinasGeo} selecionadaId={mapa.maquinaSelecionadaId} esconderSemSinal={esconderSemSinal} aoTocar={irParaMaquina} />
+        <CamadaMaquinas geo={mapa.maquinasGeo} selecionadaId={mapa.maquinaSelecionadaId} esconderSemSinal={esconderSemSinal} aoTocar={irParaMaquina} aoTocarGrupo={setGrupo} />
       </MapaBase>
 
       <View style={[styles.topo, { top: top + 5 }]}>
@@ -133,6 +136,15 @@ export function MapaScreen() {
           <Text style={styles.novoTalhaoTexto}>Importar</Text>
         </Pressable>
       </View>
+
+      <EscolherMaquina
+        maquinas={mapa.maquinas.filter((m) => grupo.includes(m.id))}
+        aoFechar={() => setGrupo([])}
+        aoEscolher={(id) => {
+          setGrupo([]);
+          irParaMaquina(id);
+        }}
+      />
 
       <PainelSelecao selecao={mapa.selecao} aoFechar={mapa.limparSelecao} aoVerMaquina={(id) => router.navigate({ pathname: '/maquina/[id]', params: { id } })} aoPlanejar={(talhaoId) => router.navigate({ pathname: '/planejar', params: { talhaoId } })}
         aoLinhaAb={(talhaoId) => router.navigate({ pathname: '/linha-ab', params: { talhaoId } })}

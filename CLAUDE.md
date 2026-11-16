@@ -281,6 +281,14 @@ Backend (`apps/api/src`)
   turno do dia. No app, `MaquinaNaEscala` (substitui `LinhaDaEscala`): cartão por máquina com o selo Operando /
   Parada / Inativa, uma linha por turno e "Adicionar turno"; quem está operando vem primeiro (`porMaquina`). O texto do
   WhatsApp lista os turnos de cada máquina. App novo com API antiga mostra tudo como "Inativa" (o campo não vem).
+- Máquinas empilhadas no mapa (16/11, pedido do Alisson: "o ícone do trator com um 2 embaixo, eu clico e escolho"): a
+  fonte de `CamadaMaquinas` agrupa (`cluster`, raio 24, até o zoom 20) e o grupo é UM marcador de trator na cor do
+  estado mais importante (verde se alguma trabalha, amarelo se alguma está parada, cinza) com o selo da quantidade
+  pendurado embaixo (`imagens/grupo-2..9.png` e `grupo-mais.png`: o estilo não tem letras, o número é desenho).
+  `clusterProperties` SÓ funcionou na forma `[[ '+', ['accumulated'], ['get', x] ], mapa]`; a forma curta deixa o
+  grupo sem as somas. Tocar no grupo chama `aoTocarGrupo(ids)`: os ids são as N máquinas mais perto do centro do grupo
+  (conta em JS; `getClusterLeaves` não respondeu no iOS). `EscolherMaquina` (`features/mapa`) lista e leva à escolhida.
+  Esconder as sem sinal agora filtra os PONTOS (senão contariam no grupo).
 - Resposta da IA organizada (15/11): as instruções mandam começar pela frase com o número em **negrito** e, quando há
   várias partes, tabela (até 4 colunas), título `## ` e tópicos `- `; só essa marcação é permitida. No app,
   `features/assistente/formatar.ts` (`lerBlocos`, puro, aguenta resposta pela metade) e `components/TextoFormatado.tsx`
