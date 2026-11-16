@@ -195,6 +195,14 @@ Backend (`apps/api/src`)
   passado sem horas da Deere (ela só cobre 62 dias) nem caminho guardado usa as horas de motor e o tempo ocioso da
   mesma leitura dos litros, para o relatório de meses antigos não vir zerado. Área de dias anteriores ao Talhio
   acompanhar a fazenda continua sem fonte (só Field Operations).
+- Área de meses antigos pelas operações de campo (16/11, pedido do Alisson: "pega pelo mês, do dia 1 ao fim do mês, pelo
+  backend"): `DeereProvedor.areaDasOperacoes(orgId, de, ate)` devolve área e horas por máquina e dia (a mesma conta de
+  `estimarDia`, mas esperando a Deere); `AreaOperacoesService` grava mês a mês na tabela `area_das_operacoes`
+  (migração 0022; `AreaOperacoesRepository.trocarPeriodo` troca o mês inteiro): 4 min depois de subir cobre 13 meses
+  (mês antigo já guardado não é relido) e a cada 6 h relê o mês atual e o anterior. `atividadeNoDia` de dia passado
+  sem área usa o que está guardado (`config.areas`). Só existe área de operação DOCUMENTADA no Operations Center
+  (plantio, aplicação, colheita); trator sem documentação não tem. O corte de 120 dias de `atividade_deere` e os 14
+  dias do export ponto a ponto continuam como estavam. NÃO conferido contra a Deere real.
 - Resposta da IA organizada (15/11): as instruções mandam começar pela frase com o número em **negrito** e, quando há
   várias partes, tabela (até 4 colunas), título `## ` e tópicos `- `; só essa marcação é permitida. No app,
   `features/assistente/formatar.ts` (`lerBlocos`, puro, aguenta resposta pela metade) e `components/TextoFormatado.tsx`

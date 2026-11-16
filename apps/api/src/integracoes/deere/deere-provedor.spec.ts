@@ -16,7 +16,7 @@ const quadrado = (lat: number, lon: number, lado = 0.01) => [
   { lat, lon },
 ];
 
-function rede(rotas: Record<string, unknown | (() => Response)>) {
+function rede(rotas: Record<string, unknown | (() => Response)>, extras: Partial<ConstructorParameters<typeof DeereProvedor>[0]> = {}) {
   const pedidos: string[] = [];
   const http = (async (url: string) => {
     pedidos.push(url);
@@ -28,7 +28,7 @@ function rede(rotas: Record<string, unknown | (() => Response)>) {
     if (!rota) return new Response('{}', { status: 404 });
     return typeof rota[1] === 'function' ? (rota[1] as () => Response)() : new Response(JSON.stringify(rota[1]), { status: 200 });
   }) as unknown as typeof fetch;
-  const provedor = new DeereProvedor({ clientId: 'a', clientSecret: 'b', baseUrl: BASE, obterToken: async () => 'tok', obterOrganizacao: async () => '111', http, esperar: async () => undefined });
+  const provedor = new DeereProvedor({ clientId: 'a', clientSecret: 'b', baseUrl: BASE, obterToken: async () => 'tok', obterOrganizacao: async () => '111', http, esperar: async () => undefined, ...extras });
   return { provedor, pedidos };
 }
 
@@ -380,6 +380,36 @@ describe('DeereProvedor: operações de campo', () => {
     expect(await provedor.atividadeNoDia('org', '637795', '2026-11-10')).toEqual({ horas: 10, areaHa: 40, combustivelL: 0, paradoMin: 0 });
     expect(await provedor.atividadeNoDia('org', '637795', '2026-11-12')).toMatchObject({ horas: 0, areaHa: 0 });
     expect(await provedor.atividadeNoDia('org', '999', '2026-11-10')).toMatchObject({ areaHa: 0 });
+  });
+
+  it('área das operações num período: cada máquina e dia, repartindo a operação que atravessa dias e deixando de fora o que é de outro mês', async () => {
+    const deNovembro = { ...op, id: 'OP1', startDate: '2026-11-10T12:00:00.000Z', endDate: '2026-11-11T12:00:00.000Z' };
+    const deJunho = { ...op, id: 'OP2', startDate: '2026-06-05T11:00:00.000Z', endDate: '2026-06-05T21:00:00.000Z', fieldOperationMachines: [{ machineId: 637795 }, { machineId: 700 }] };
+    const { provedor } = rede({
+      ...rotas,
+      '/organizations/111/fields/T1/fieldOperations': { values: [deNovembro, deJunho] },
+      '/fieldOperations/OP2/measurementTypes': { values: [{ measurementName: 'SeedingRateResult' }] },
+      '/fieldOperations/OP2/measurementTypes/SeedingRateResult': { measurementName: 'SeedingRateResult', area: { value: 62.5, unitId: 'ha' } },
+    });
+    expect(await provedor.areaDasOperacoes('org', '2026-06-01', '2026-06-30')).toEqual([
+      { maquinaId: '637795', dia: '2026-06-05', areaHa: 62.5, horas: 10 },
+      { maquinaId: '700', dia: '2026-06-05', areaHa: 62.5, horas: 10 },
+    ]);
+    // 24 h de operação: 15 h caem no dia 10 e 9 h no dia 11 (horário de Brasília); os 40 ha vão na mesma proporção.
+    expect(await provedor.areaDasOperacoes('org', '2026-11-01', '2026-11-30')).toEqual([
+      { maquinaId: '637795', dia: '2026-11-10', areaHa: 25, horas: 15 },
+      { maquinaId: '637795', dia: '2026-11-11', areaHa: 15, horas: 9 },
+    ]);
+    // Período que corta a operação no meio só traz os dias pedidos.
+    expect(await provedor.areaDasOperacoes('org', '2026-11-11', '2026-11-30')).toEqual([{ maquinaId: '637795', dia: '2026-11-11', areaHa: 15, horas: 9 }]);
+    expect(await provedor.areaDasOperacoes('org', '2026-07-01', '2026-07-31')).toEqual([]);
+  });
+
+  it('dia passado sem resposta da Deere a tempo usa a área das operações já guardada no banco', async () => {
+    const semOperacoes = { ...rotas, '/organizations/111/fields/T1/fieldOperations': { values: [] } };
+    const { provedor } = rede(semOperacoes, { areas: { buscar: async (_o: string, maquina: string, dia: string) => (maquina === '637795' && dia === '2026-06-05' ? { areaHa: 62.54, horas: 10 } : null) } });
+    expect(await provedor.atividadeNoDia('org', '637795', '2026-06-05')).toMatchObject({ areaHa: 62.5, horas: 10 });
+    expect(await provedor.atividadeNoDia('org', '637795', '2026-06-06')).toMatchObject({ areaHa: 0 });
   });
 
   it('casa a máquina da operação pelo chassi quando o id dela é outro', async () => {

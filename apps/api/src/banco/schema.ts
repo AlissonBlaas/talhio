@@ -292,6 +292,23 @@ export const combustivelAcumulado = pgTable(
  * número do monitor, com as horas de motor do mesmo dia. Serve para os dias em que ainda não havia leitura do
  * contador da ISO. Dia sem linha aqui = sem dado importado (não é zero litro).
  */
+/**
+ * Área e horas de cada máquina em cada dia, lidas das operações de campo da John Deere (Field Operations) mês a mês.
+ * É o que dá área ao relatório de meses antigos, de antes de o Talhio acompanhar o caminho das máquinas.
+ */
+export const areaDasOperacoes = pgTable(
+  'area_das_operacoes',
+  {
+    orgId: text('org_id').notNull().references(() => organizacoes.id, { onDelete: 'cascade' }),
+    maquinaId: text('maquina_id').notNull(),
+    dia: text('dia').notNull(),
+    areaHa: doublePrecision('area_ha').notNull(),
+    horas: doublePrecision('horas').notNull(),
+    lidoEm: timestamp('lido_em', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.orgId, t.maquinaId, t.dia] })],
+);
+
 export const combustivelImportado = pgTable(
   'combustivel_importado',
   {

@@ -3,6 +3,8 @@ import { APP_FILTER } from '@nestjs/core';
 import { DeereProvedor, FakeProvedor, lerPastaGen4, type ProvedorMaquinas } from '@talhio/deere';
 import { CONFIG, type Config } from '../../core/config.js';
 import { DeereErroFilter } from './deere-erro.filter.js';
+import { AreaOperacoesRepository } from './area-operacoes.repository.js';
+import { AreaOperacoesService } from './area-operacoes.service.js';
 import { AtividadeDeereRepository } from './atividade-deere.repository.js';
 import { CombustivelAcumuladoRepository } from './combustivel-acumulado.repository.js';
 import { ConsumoDeereRepository } from './consumo-deere.repository.js';
@@ -34,13 +36,15 @@ const logDaDeere = new Logger('Deere');
     CombustivelAcumuladoRepository,
     ConsumoDeereRepository,
     ConsumoDeereService,
+    AreaOperacoesRepository,
+    AreaOperacoesService,
     SincronizacaoDeereService,
     { provide: APP_FILTER, useClass: DeereErroFilter },
     { provide: DEERE_HTTP, useValue: fetch },
     {
       provide: PROVEDOR_MAQUINAS,
-      inject: [CONFIG, ConexaoDeereService, AtividadeDeereRepository, UsoDiarioRepository, LarguraImplementoRepository, CombustivelAcumuladoRepository],
-      useFactory: (config: Config, conexao: ConexaoDeereService, armazem: AtividadeDeereRepository, diario: UsoDiarioRepository, larguras: LarguraImplementoRepository, combustivel: CombustivelAcumuladoRepository): ProvedorMaquinas =>
+      inject: [CONFIG, ConexaoDeereService, AtividadeDeereRepository, UsoDiarioRepository, LarguraImplementoRepository, CombustivelAcumuladoRepository, AreaOperacoesRepository],
+      useFactory: (config: Config, conexao: ConexaoDeereService, armazem: AtividadeDeereRepository, diario: UsoDiarioRepository, larguras: LarguraImplementoRepository, combustivel: CombustivelAcumuladoRepository, areas: AreaOperacoesRepository): ProvedorMaquinas =>
         config.deereProvedor === 'fake' || !config.deere
           ? new FakeProvedor(undefined, config.pastaGen4 ? lerPastaGen4(config.pastaGen4) : null)
           : new DeereProvedor({
@@ -54,6 +58,7 @@ const logDaDeere = new Logger('Deere');
               obterOrganizacoes: (orgId) => conexao.organizacoesDaDeere(orgId),
               armazem,
               diario,
+              areas,
               combustivel,
               combustivelPeloTanque: config.combustivelPeloTanque,
               obterLarguras: (orgId) => larguras.todas(orgId),

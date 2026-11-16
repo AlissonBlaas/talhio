@@ -32,6 +32,8 @@ export interface ProvedorMaquinas {
   /** Alertas (falhas, cerca eletrônica, manutenção) que a máquina registrou no período, do mais antigo para o mais novo. */
   alertasDaMaquina?(orgId: string, maquinaId: string, desde: Date, ate?: Date): Promise<import('./alertas').AlertaDaMaquina[]>;
   consumoDiario?(orgId: string, maquinaId: string, desde: string, ate: string): Promise<import('./medicoes').ConsumoDoDia[]>;
+  /** Área e horas por máquina e dia, de `de` a `ate` (AAAA-MM-DD), pelas operações de campo. Espera a John Deere. */
+  areaDasOperacoes?(orgId: string, de: string, ate: string): Promise<import('./deere-provedor').AreaDoDia[]>;
   rastroDeHoje?(orgId: string, maquinaId: string): Promise<[number, number][][]>;
   /** Pontos do caminho de hoje, em ordem de hora (o que `rastroDeHoje` já guardou). Não consulta o fornecedor. */
   caminhoDeHoje?(orgId: string, maquinaId: string): { t: number; lng: number; lat: number; kmh: number }[];

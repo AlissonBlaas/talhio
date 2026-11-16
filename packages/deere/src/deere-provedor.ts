@@ -6,6 +6,7 @@ import { lerAnaliseDaMaquina, type AnaliseDaMaquina } from './medicoes-analise';
 import {
   areaDaMedicao,
   fatiaDoDia,
+  inicioDoDia,
   linhaDe,
   medicaoEscolhida,
   operacaoDe,
@@ -84,6 +85,20 @@ export interface ArmazemDeUso {
   limpar?(orgId: string): Promise<void>;
 }
 
+/** Área e horas de uma máquina num dia, tiradas das operações de campo da John Deere. */
+export interface AreaDoDia {
+  maquinaId: string;
+  /** AAAA-MM-DD, horário de Brasília. */
+  dia: string;
+  areaHa: number;
+  horas: number;
+}
+
+/** Onde fica guardada a área por máquina e dia lida das operações de campo (meses passados inclusive). */
+export interface ArmazemDeArea {
+  buscar(orgId: string, maquinaId: string, dia: string): Promise<{ areaHa: number; horas: number } | null>;
+}
+
 /**
  * Leituras do combustível ACUMULADO de cada máquina (litros que o motor já gastou na vida, pela ISO 15143-3). É o
  * mesmo número do monitor. Guardando a última leitura de cada dia, os litros de um dia são a diferença entre a
@@ -139,6 +154,8 @@ export interface DeereConfig {
   obterLarguras?: (orgId: string) => Promise<Map<string, number>>;
   /** Fechamento diário pelo caminho (dias passados). Sem isso, só o dia de hoje tem trajeto. */
   diario?: ArmazemDeUso;
+  /** Área por máquina e dia já lida das operações de campo e guardada no banco. É o que dá área a meses antigos. */
+  areas?: ArmazemDeArea;
   /** Onde ficam as leituras do combustível acumulado do motor. Sem isto, o relatório só tem litros quando o export os traz. */
   combustivel?: ArmazemDeCombustivel;
   /**
@@ -692,6 +709,15 @@ export class DeereProvedor implements ProvedorMaquinas {
       ate(this.horasLigadoNoDia(orgId, maquinaId, dia), 1500, 0),
     ]);
     const atividade: AtividadeDiariaExterna = { ...estimado, horas: Math.max(estimado.horas, ligado) };
+    // A estimativa acima só espera 400 ms pela Deere. A área das operações de campo já lida e guardada no banco
+    // (mês a mês, inclusive meses antigos) entra quando ela não chegou a tempo ou a memória ainda está vazia.
+    if (atividade.areaHa === 0 && dia !== hojeNaFazenda()) {
+      const guardada = await this.config.areas?.buscar(orgId, maquinaId, dia).catch(() => null);
+      if (guardada && guardada.areaHa > 0) {
+        atividade.areaHa = Math.round(guardada.areaHa * 10) / 10;
+        atividade.horas = Math.max(atividade.horas, Math.round(guardada.horas * 10) / 10);
+      }
+    }
     // Dia passado: o fechamento guardado (lido do caminho daquele dia) completa o que a Deere não informa.
     let temFechamento = false;
     if (dia !== hojeNaFazenda()) {
@@ -1657,6 +1683,47 @@ export class DeereProvedor implements ProvedorMaquinas {
     const talhoes = await this.camposDaDeere(orgId);
     const listas = await emLotes(talhoes, async (t) => (await this.operacoesDoTalhao(orgId, t.id)).map((op) => ({ op, talhaoId: t.id })));
     return listas.flat().filter(({ op }) => op.fieldOperationMachines?.some((m) => String(m.machineId) === maquinaId));
+  }
+
+  /**
+   * Área e horas de cada máquina em cada dia de `de` a `ate` (AAAA-MM-DD, horário de Brasília), pelas operações de
+   * campo de todos os talhões. A mesma conta de `estimarDia` (a área da operação repartida pelos dias em que ela
+   * correu), mas ESPERA a John Deere: é para o serviço que grava o mês inteiro no banco, não para a tela.
+   */
+  async areaDasOperacoes(orgId: string, de: string, ate: string): Promise<AreaDoDia[]> {
+    const talhoes = await this.camposDaDeere(orgId);
+    const operacoes = (await emLotes(talhoes, (t) => this.operacoesDoTalhao(orgId, t.id).catch(() => [] as OperacaoDeere[]))).flat();
+    const inicio = inicioDoDia(de);
+    const fim = inicioDoDia(ate) + 86_400_000;
+    const diaDe = (ms: number) => new Date(ms - 3 * 3_600_000).toISOString().slice(0, 10);
+    const noPeriodo = operacoes.filter((op) => {
+      const ini = Date.parse(op.startDate ?? '');
+      const termino = Date.parse(op.endDate ?? op.startDate ?? '');
+      return Number.isFinite(ini) && Number.isFinite(termino) && termino >= inicio && ini < fim && (op.fieldOperationMachines?.length ?? 0) > 0;
+    });
+    const areas = await emLotes(noPeriodo, (op) => this.areaDaOperacao(orgId, op).catch(() => 0));
+    const soma = new Map<string, AreaDoDia>();
+    noPeriodo.forEach((op, i) => {
+      const area = areas[i] ?? 0;
+      const maquinas = [...new Set((op.fieldOperationMachines ?? []).map((m) => (m.machineId === undefined || m.machineId === null ? '' : String(m.machineId))).filter((id) => id))];
+      const ini = Math.max(inicio, Date.parse(op.startDate ?? ''));
+      const termino = Math.min(fim - 1, Date.parse(op.endDate ?? op.startDate ?? ''));
+      for (let dia = diaDe(ini); dia <= diaDe(termino); dia = diaDe(inicioDoDia(dia) + 86_400_000 + 3_600_000)) {
+        const fatia = fatiaDoDia(op, dia);
+        if (fatia.fracao <= 0) continue;
+        for (const maquinaId of maquinas) {
+          const chave = `${maquinaId}|${dia}`;
+          const atual = soma.get(chave) ?? { maquinaId, dia, areaHa: 0, horas: 0 };
+          atual.areaHa += area * fatia.fracao;
+          atual.horas += fatia.horas;
+          soma.set(chave, atual);
+        }
+      }
+    });
+    return [...soma.values()]
+      .map((a) => ({ ...a, areaHa: Math.round(a.areaHa * 100) / 100, horas: Math.round(a.horas * 100) / 100 }))
+      .filter((a) => a.areaHa > 0 || a.horas > 0)
+      .sort((a, b) => a.dia.localeCompare(b.dia) || a.maquinaId.localeCompare(b.maquinaId));
   }
 
   /** Hectares trabalhados na operação (medição "Result"); 0 se a Deere não informar. Fica guardado: operação encerrada não muda. */
