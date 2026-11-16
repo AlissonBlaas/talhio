@@ -21,6 +21,11 @@ type Props = {
   mostrarAtribuicao?: boolean;
   /** Toque no mapa fora de qualquer camada que trate toque. */
   aoTocar?: (posicao: LngLat, pontoTela: PontoTela) => void;
+  /**
+   * A câmera PAROU (fim de um arrasto, zoom ou comando) ou o mapa acabou de abrir. Não avisa durante o movimento:
+   * serve para conferir uma vez o que ficou na tela, nunca para acompanhar o dedo.
+   */
+  aoParar?: () => void;
   /** Camadas (de `@/mapa-motor`). */
   children?: ReactNode;
 };
@@ -40,10 +45,11 @@ const ZOOM_MAXIMO = 19;
  * - a posição inicial vale só na montagem; depois disso a câmera é movida por comando (`ref`),
  *   nunca por estado do React.
  */
-export const MapaBase = memo(function MapaBase({ ref, limites, margem = SEM_MARGEM, centro, zoom, interativo = true, permitirGirar = false, mostrarAtribuicao = true, aoTocar, children }: Props) {
+export const MapaBase = memo(function MapaBase({ ref, limites, margem = SEM_MARGEM, centro, zoom, interativo = true, permitirGirar = false, mostrarAtribuicao = true, aoTocar, aoParar, children }: Props) {
   const mapaRef = useRef<MapRef>(null);
   const cameraRef = useRef<CameraRef>(null);
   const tocar = useEventoEstavel(aoTocar);
+  const parar = useEventoEstavel(aoParar);
 
   useImperativeHandle(
     ref,
@@ -100,6 +106,8 @@ export const MapaBase = memo(function MapaBase({ ref, limites, margem = SEM_MARG
       touchRotate={interativo && permitirGirar}
       // Os gestos só são mexidos para travar o mapa; no mapa normal valem os padrões da biblioteca.
       {...(interativo ? null : GESTOS_DESLIGADOS)}
+      onRegionDidChange={() => parar()}
+      onDidFinishLoadingMap={() => parar()}
       onPress={(evento) => tocar(evento.nativeEvent.lngLat as LngLat, evento.nativeEvent.point as PontoTela)}>
       <Camera ref={cameraRef} minZoom={ZOOM_MINIMO} maxZoom={ZOOM_MAXIMO} initialViewState={inicial} />
       {children}

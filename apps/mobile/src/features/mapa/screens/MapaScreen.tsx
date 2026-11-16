@@ -1,6 +1,6 @@
 import { useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { limitesDosTalhoes } from '@/features/talhoes';
@@ -9,8 +9,10 @@ import { Carregando, ErroComTentarDeNovo } from '@/shared/components/estado-tela
 import { Icone } from '@/shared/components/Icone';
 import { cores, fontes } from '@/shared/theme/tokens';
 
+import { MaquinasForaDaTela } from '../components/MaquinasForaDaTela';
 import { PainelSelecao } from '../components/PainelSelecao';
 import { useMapaDaFazenda } from '../hooks/useMapaDaFazenda';
+import { useMaquinasForaDaTela } from '../hooks/useMaquinasForaDaTela';
 
 /** Zoom ao tocar numa máquina: perto o bastante para ver as passadas ao redor dela. */
 const ZOOM_NA_MAQUINA = 16;
@@ -27,6 +29,16 @@ export function MapaScreen() {
   const trabalhando = doEstado('trabalhando');
   const paradas = doEstado('parada');
   const semSinal = doEstado('sem-sinal');
+  // Trator com sinal que ficou fora da tela ganha um aviso na borda, do lado onde ele está.
+  const { width: largura, height: altura } = useWindowDimensions();
+  const foraDaTela = useMaquinasForaDaTela(
+    controle,
+    mapa.maquinas,
+    // O que sobra do mapa entre as contagens do topo e o painel de baixo (mais alto quando há algo selecionado).
+    { esquerda: 0, topo: top + 160, direita: largura, baixo: altura - (mapa.selecao?.tipo === 'maquina' ? 470 : mapa.selecao ? 340 : 140) },
+    // Botões de zoom, "Novo plano" e "Importar", no canto direito.
+    { esquerda: largura - 135, topo: top + 105, direita: largura, baixo: top + 330 },
+  );
 
   /** Enquadra as máquinas de um estado, para achar de uma vez quem está trabalhando (ou parada com sinal). */
   const mostrar = (maquinas: typeof trabalhando) => {
@@ -68,7 +80,7 @@ export function MapaScreen() {
 
   return (
     <View style={styles.tela}>
-      <MapaBase ref={controle} limites={mapa.limites} margem={{ top: top + 90, right: 40, bottom: 230, left: 40 }} permitirGirar aoTocar={mapa.limparSelecao}>
+      <MapaBase ref={controle} limites={mapa.limites} margem={{ top: top + 90, right: 40, bottom: 230, left: 40 }} permitirGirar aoTocar={mapa.limparSelecao} aoParar={foraDaTela.recalcular}>
         <CamadaTalhoes geo={mapa.talhoesGeo} selecionadoId={mapa.talhaoSelecionadoId} rotulos={mapa.rotulos} aoTocar={irParaTalhao} />
         <CamadaPassadas geo={mapa.linhaGeo} />
         <CamadaRastros geo={mapa.rastrosGeo} paradas={mapa.paradasGeo} selecionadaId={mapa.maquinaSelecionadaId} />
@@ -83,6 +95,8 @@ export function MapaScreen() {
           <Text style={styles.titulo}>Mapa da fazenda</Text>
         </View>
       </View>
+
+      <MaquinasForaDaTela indicadores={foraDaTela.indicadores} aoTocar={irParaMaquina} />
 
       {/* Quantas máquinas em cada estado, com a mesma cor e o mesmo tamanho do mapa. Tocar leva até elas. */}
       {mapa.maquinas.length > 0 ? (

@@ -245,6 +245,14 @@ Backend (`apps/api/src`)
 - Limpar notificações (16/11): `POST /v1/notificacoes/limpar` grava `notificacoes_lidas.limpo_ate` (migração 0023) e a
   lista do usuário passa a trazer só o que chegou depois. É por USUÁRIO e não apaga nada: os outros continuam vendo e o
   motor de alertas segue enxergando os abertos. No app, botão "Limpar" no topo da tela (com confirmação), `useLimparNotificacoes`.
+- Mapa mais claro (16/11, pedido do Alisson): `CamadaMaquinas` separa os estados por tamanho, cor e ordem de desenho
+  (trabalhando = maior, verde `folha`, com auréola `maquinas-trabalhando`; parada = média amarela; sem sinal = ponto
+  cinza pequeno sem desenho) e aceita `esconderSemSinal` (filtro SEMPRE como expressão: o MapLibre nativo recusa `true`).
+  `MapaScreen` tem a contagem por estado no topo (tocar enquadra; "sem sinal" esconde/mostra). Trator com sinal fora da
+  tela: `MaquinasForaDaTela` desenha um aviso na borda, do lado dele, e tocar leva até a máquina
+  (`useMaquinasForaDaTela` + `foraDaTela.ts`, conta pura). Usa `MapaBase.aoParar`, que avisa só quando a câmera PARA:
+  é a única exceção à regra de não ouvir a câmera, e nunca acompanha o movimento. Envio manual pelo Xcode usa
+  `ios.buildNumber` do `app.json` (subir na mão a cada envio; o EAS conta à parte).
 - Resposta da IA organizada (15/11): as instruções mandam começar pela frase com o número em **negrito** e, quando há
   várias partes, tabela (até 4 colunas), título `## ` e tópicos `- `; só essa marcação é permitida. No app,
   `features/assistente/formatar.ts` (`lerBlocos`, puro, aguenta resposta pela metade) e `components/TextoFormatado.tsx`
