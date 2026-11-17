@@ -42,7 +42,7 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
     <main className="erro">
       <h1>{naoEncontrada ? "Página não encontrada" : "Algo deu errado"}</h1>
       <p>{naoEncontrada ? "O endereço que você abriu não existe no site do Talhio." : "Tente abrir a página de novo em instantes."}</p>
-      <a className="botao botao-broto" href="/">
+      <a className="botao" href="/">
         Voltar ao início
       </a>
     </main>

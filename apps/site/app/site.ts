@@ -6,9 +6,9 @@ const soNumeros = (texto: string | undefined) => texto?.replace(/\D/g, "") || nu
 
 export const site = {
   nome: "Talhio",
-  titulo: "Talhio · O agrônomo cuida da lavoura, o relatório se monta sozinho",
+  titulo: "Talhio · Planeje no aplicativo, o operador recebe no monitor da máquina",
   descricao:
-    "O Talhio acompanha as máquinas John Deere em tempo real, monta o relatório do dia, ajuda a planejar o talhão e responde às suas perguntas com os números da fazenda.",
+    "O Talhio mostra as máquinas John Deere no mapa, monta a escala da equipe, entrega o relatório do dia pronto e responde às suas perguntas com os números da fazenda.",
   /** Endereço público, sem barra no fim. Nulo enquanto o domínio não estiver definido. */
   url: semBarra(env.VITE_URL_DO_SITE),
   whatsapp: soNumeros(env.VITE_CONTATO_WHATSAPP),

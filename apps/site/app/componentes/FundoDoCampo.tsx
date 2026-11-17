@@ -3,7 +3,7 @@ import { useState } from "react";
 const VIDEOS = __VIDEOS_DE_FUNDO__;
 
 /**
- * Fundo da abertura: os vídeos do campo, por cima de um fundo animado de linhas de plantio.
+ * A cena da abertura: os vídeos do campo dentro de uma moldura arredondada, por cima de um fundo de linhas de plantio.
  * Com um vídeo, ele repete; com vários, tocam em sequência e recomeçam. Sem vídeo em
  * `public/video` (ou se a pessoa pediu menos movimento), fica só o fundo animado.
  * Tudo aqui é decorativo.
