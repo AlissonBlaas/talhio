@@ -6,6 +6,7 @@ import { ConexaoDeereRepository } from './conexao-deere.repository.js';
 import { ConexaoDeereService } from './conexao-deere.service.js';
 import { cifrar, decifrar } from '../../shared/cripto.js';
 import { DEERE_HTTP, type Http } from './deere.http.js';
+import { DemonstracaoService } from '../../demonstracao/demonstracao.service.js';
 
 const CHAVE = 'chave-de-teste-com-mais-de-32-caracteres!!';
 const config = {
@@ -45,7 +46,7 @@ async function montar(respostas: Parameters<typeof http>[0], cfg = config) {
   const rede = http({ ...LOGIN, ...respostas });
   const banco = await criarBancoDeTeste('org-a');
   const modulo = await Test.createTestingModule({
-    providers: [ConexaoDeereService, ConexaoDeereRepository, { provide: BANCO, useValue: banco }, { provide: CONFIG, useValue: cfg }, { provide: DEERE_HTTP, useValue: rede.fn }],
+    providers: [ConexaoDeereService, ConexaoDeereRepository, { provide: BANCO, useValue: banco }, { provide: CONFIG, useValue: cfg }, { provide: DEERE_HTTP, useValue: rede.fn }, { provide: DemonstracaoService, useValue: { ehDemo: () => false } }],
   }).compile();
   return { servico: modulo.get(ConexaoDeereService), repo: modulo.get(ConexaoDeereRepository), rede, banco };
 }

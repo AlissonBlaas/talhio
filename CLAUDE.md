@@ -402,6 +402,8 @@ Backend (`apps/api/src`)
   cria-se um novo (`/novo-talhao`, que segue para a linha e o plano). Talhão com linha vai direto
   para `/planejar`; sem linha, passa antes por `/linha-ab`. O mapa não tem mais o botão "Novo talhão".
 - Fluxo "2 · Preparar e enviar ao trator" do protótipo, ponta a ponta: novo talhão -> linha AB
+- 17/11 Novo talhão: o canto selecionado é ARRASTADO sem o mapa andar. `useArrastarCanto` põe uma área de toque invisível (64 pt) sobre o canto; fora dela o mapa arrasta e aproxima normalmente. A conversão tela -> mapa é medida com o mapa parado (`MapaControle.desprojetar`, três pontos) e o arrasto faz a conta local. "Arredondar canto" (`talhoes/arredondar.ts`) troca o canto por uma curva de pontos reais: o contorno salvo é o que aparece.
+- 17/11 Landing refeita (o Alisson achou a anterior feia e mandou o guia `talhio-branding-completo`, conceito 05, e um modelo): abertura em TELA CHEIA com os vídeos de fundo, a marca grande no meio e a assinatura "PLANEJE / OPERE / RELATÓRIOS" (caixa-alta espaçada é da marca; vale também nos rótulos acima dos títulos); o resto em off-white, verde na identidade e amarelo só em detalhes. Seções: tudo em um só lugar (celular), DIRETO NO MONITOR (mensagem central pedida por ele: o agrônomo planeja e escala, o operador recebe no monitor, sem treinamento), relatórios, escala/IA, para quem, John Deere, perguntas, contato. Sem depoimento inventado. ATENÇÃO: o envio do PLANO ao monitor ainda não existe (Work Plans restrito); a seção John Deere diz "Em teste". Isto substitui o posicionamento e a ordem de seções descritos no topo deste arquivo.
   (`/linha-ab`; ao concluir vai para `/planejar`, ou volta ao plano se veio dele com `origem=plano`)
   -> plano (`/planejar`) -> escala do plano (`/escala-do-plano?planoId=`, `EscalaDoPlanoScreen` em
   `features/planos`: operador e turno de cada máquina do plano no dia em que ele começa, prévia da
@@ -488,6 +490,22 @@ algodão e papel nos tokens; fontes Outfit (`fontes.titulo/rotulo/rotuloLeve`) e
 (`regular/medio/semi/italico`), trocadas das condensadas porque o Alisson não gostou delas. Formas sempre arredondadas (pílulas, raios grandes, sem cantos retos). `Marca` é o
 símbolo das passadas. As telas das abas e as de formulário/detalhe (máquina, importar, planejar, escala do plano) têm topo verde arredondado (`CabecalhoTela`, com `voltar` e `progresso` em passadas; barra de status clara enquanto em foco). Telas de mapa mantêm controles flutuantes redondos. Botões principais são pílulas de milho com texto `sobreMilho`. Toda cor e fonte vem de
 `shared/theme/tokens.ts`. O app é só tema claro.
+
+Fazenda de demonstração (17/11, para o revisor da Apple entrar sem conta John Deere): `DEMO_EMAIL` (opcional) é o e-mail
+de uma conta que já existe (hoje `talhio.tester@talhio.com`); a fazenda dessa conta vira a de demonstração. Quem decide
+é `DemonstracaoService` (`apps/api/src/demonstracao`, módulo global; resolve a fazenda pelo e-mail na subida, então a
+conta precisa existir antes e a API reinicia depois de criar; a fazenda do administrador do servidor nunca vira
+demonstração; sem `DEMO_EMAIL`, nenhuma é). O que muda nela: (1) `ProvedorPorFazenda` (`integracoes/deere`) manda cada
+chamada de `PROVEDOR_MAQUINAS` ao `FakeProvedor` (dados de exemplo) se for a de demonstração e ao `DeereProvedor` nas
+demais; os métodos opcionais da interface sempre existem nele e devolvem vazio/nulo quando a fonte da fazenda não os tem
+(só é usado com a Deere ligada; com `DEERE_PROVEDOR=fake` o provedor é o `FakeProvedor` puro). (2) `ConexaoDeereService.estado`
+devolve `{ modo: 'demonstracao', estado: 'pronto' }` e iniciar, concluir, escolher organização, conferir, desconectar,
+diagnosticar, ativar aviso e `obterToken` são recusados com 403 `DEMONSTRACAO_SEM_DEERE`. (3) `WhatsappService`: estado
+`indisponivel`, e pedir código, mandar texto/grupo/teste e desconectar são recusados (503 `WHATSAPP_INDISPONIVEL`).
+(4) `fazendasProntas()` (sincronização, consumo, área, alertas) não inclui a demonstração. (5) A IA e o relatório funcionam
+normalmente, porque só falam com o provedor. Não existe "excluir conta" na API ainda; quando existir, a demonstração
+tem de recusar (e a Apple exige excluir conta dentro do app para apps com cadastro). Para ligar em produção: pôr
+`DEMO_EMAIL` no segredo `talhio/api-env` e rodar `./infra/aplicar-segredos.sh` (ou recriar o contêiner com o env novo).
 
 ## Referências
 

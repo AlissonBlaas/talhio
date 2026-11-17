@@ -1,14 +1,18 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { and, eq, gte, isNotNull, sql } from 'drizzle-orm';
 import type { ArmazemAtividade, DiaDeMaquina } from '@talhio/deere';
 import type { Banco } from '../../banco/banco.js';
 import { BANCO } from '../../banco/banco.module.js';
 import { atividadeDeere, conexoesDeere, exportacoesDeere } from '../../banco/schema.js';
+import { DemonstracaoService } from '../../demonstracao/demonstracao.service.js';
 
 /** Guarda o que foi lido dos exports da Deere. Toda consulta filtra por orgId. */
 @Injectable()
 export class AtividadeDeereRepository implements ArmazemAtividade {
-  constructor(@Inject(BANCO) private readonly db: Banco) {}
+  constructor(
+    @Inject(BANCO) private readonly db: Banco,
+    @Optional() @Inject(DemonstracaoService) private readonly demonstracao?: DemonstracaoService,
+  ) {}
 
   async versoes(orgId: string): Promise<Map<string, string>> {
     const linhas = await this.db.select().from(exportacoesDeere).where(eq(exportacoesDeere.orgId, orgId));
@@ -79,6 +83,7 @@ export class AtividadeDeereRepository implements ArmazemAtividade {
       .select({ orgId: conexoesDeere.orgId })
       .from(conexoesDeere)
       .where(and(isNotNull(conexoesDeere.deereOrgId), eq(conexoesDeere.precisaLiberar, false)));
-    return linhas.map((l) => l.orgId);
+    // A fazenda de demonstração nunca entra nas rodadas de segundo plano (sincronização, consumo, área, alertas).
+    return linhas.map((l) => l.orgId).filter((orgId) => !this.demonstracao?.ehDemo(orgId));
   }
 }

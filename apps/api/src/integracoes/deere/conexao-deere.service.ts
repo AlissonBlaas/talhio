@@ -4,6 +4,7 @@ import type { ConexaoDeere, InicioDaConexao, OrganizacaoDeere } from '@talhio/sh
 import { CONFIG, type Config, type DeereAcesso } from '../../core/config.js';
 import { ConexaoDeereRepository, type ConexaoGuardada } from './conexao-deere.repository.js';
 import { cifrar, decifrar } from '../../shared/cripto.js';
+import { DemonstracaoService } from '../../demonstracao/demonstracao.service.js';
 import { DEERE_HTTP, type Http } from './deere.http.js';
 
 const VALIDADE_DO_ESTADO_MS = 10 * 60 * 1000;
@@ -48,7 +49,13 @@ export class ConexaoDeereService {
     @Inject(ConexaoDeereRepository) private readonly repo: ConexaoDeereRepository,
     @Inject(CONFIG) private readonly config: Config,
     @Inject(DEERE_HTTP) private readonly http: Http,
+    @Inject(DemonstracaoService) private readonly demonstracao: DemonstracaoService,
   ) {}
+
+  /** A fazenda de demonstração nunca se conecta à John Deere (nem lê, nem escreve na conta de ninguém). */
+  private recusarDemonstracao(orgId: string): void {
+    if (this.demonstracao.ehDemo(orgId)) throw new ForbiddenException({ codigo: 'DEMONSTRACAO_SEM_DEERE', mensagem: 'Esta é uma fazenda de demonstração: ela não se conecta à John Deere.' });
+  }
 
   private get deere(): DeereAcesso {
     if (!this.config.deere) throw new BadRequestException({ codigo: 'DEERE_DESLIGADA', mensagem: 'A ligação com a John Deere não está ativa neste servidor.' });
@@ -56,7 +63,7 @@ export class ConexaoDeereService {
   }
 
   async estado(orgId: string): Promise<ConexaoDeere> {
-    if (this.config.deereProvedor === 'fake') return { modo: 'demonstracao', estado: 'pronto', organizacaoNome: null, organizacaoIds: [], conectadoEm: null };
+    if (this.config.deereProvedor === 'fake' || this.demonstracao.ehDemo(orgId)) return { modo: 'demonstracao', estado: 'pronto', organizacaoNome: null, organizacaoIds: [], conectadoEm: null };
     const c = await this.repo.buscar(orgId);
     if (!c) return { modo: 'deere', estado: 'desconectado', organizacaoNome: null, organizacaoIds: [], conectadoEm: null };
     const estado = !c.deereOrgId ? 'escolher-organizacao' : c.precisaLiberar ? 'liberar-acesso' : 'pronto';
@@ -65,6 +72,7 @@ export class ConexaoDeereService {
 
   /** Endereço de login da Deere. O `state` assinado liga a volta do navegador a esta fazenda. */
   async iniciar(orgId: string, agora = Date.now()): Promise<InicioDaConexao> {
+    this.recusarDemonstracao(orgId);
     const d = this.deere;
     const { authorization_endpoint } = await this.descobrir();
     const url = new URL(authorization_endpoint);
@@ -96,6 +104,7 @@ export class ConexaoDeereService {
    * chama), troca o código por tokens e guarda cifrados.
    */
   async concluir(orgId: string, entrada: { codigo: string; estado: string }, agora = Date.now()): Promise<ConexaoDeere> {
+    this.recusarDemonstracao(orgId);
     const d = this.deere;
     const donoDoEstado = this.lerEstado(entrada.estado, agora);
     if (!donoDoEstado) throw new BadRequestException({ codigo: 'DEERE_SESSAO_INVALIDA', mensagem: 'O tempo para entrar na John Deere acabou. Tente de novo.' });
@@ -115,6 +124,7 @@ export class ConexaoDeereService {
   }
 
   async organizacoes(orgId: string): Promise<OrganizacaoDeere[]> {
+    this.recusarDemonstracao(orgId);
     const resposta = await this.chamar<OrgDaDeere[] | { values?: OrgDaDeere[] }>(orgId, '/organizations');
     const lista = Array.isArray(resposta) ? resposta : (resposta.values ?? []);
     return lista.map((o) => {
@@ -127,6 +137,7 @@ export class ConexaoDeereService {
 
   /** Escolhe uma ou mais organizações. A primeira é a principal (onde o Talhio escreve); as outras só são lidas. */
   async escolher(orgId: string, ids: string[]): Promise<ConexaoDeere> {
+    this.recusarDemonstracao(orgId);
     const todas = await this.organizacoes(orgId);
     const unicos = [...new Set(ids)];
     const escolhidas = unicos.map((id) => todas.find((o) => o.id === id));
@@ -139,6 +150,7 @@ export class ConexaoDeereService {
 
   /** Depois de liberar o acesso no site da Deere: confere de novo e, se estiver liberado, libera o app. */
   async conferirLiberacao(orgId: string): Promise<ConexaoDeere> {
+    this.recusarDemonstracao(orgId);
     const c = await this.repo.buscar(orgId);
     if (c?.deereOrgId && c.precisaLiberar) {
       const todas = await this.organizacoes(orgId);
@@ -165,11 +177,13 @@ export class ConexaoDeereService {
   }
 
   async desconectar(orgId: string): Promise<void> {
+    this.recusarDemonstracao(orgId);
     await this.repo.apagar(orgId);
   }
 
   /** Token de acesso válido para a fazenda; renova sozinho quando está perto de vencer. */
   async obterToken(orgId: string, agora = Date.now()): Promise<string> {
+    this.recusarDemonstracao(orgId);
     const d = this.deere;
     const c = await this.repo.buscar(orgId);
     if (!c) throw new BadRequestException({ codigo: 'DEERE_NAO_CONECTADA', mensagem: 'Conecte a conta John Deere da fazenda primeiro.' });
@@ -198,6 +212,7 @@ export class ConexaoDeereService {
    * itens vieram. Nunca devolve token nem dados da fazenda, só contagens.
    */
   async diagnosticar(orgId: string): Promise<{ passo: string; status: number | string; total: number | null; nota?: string }[]> {
+    this.recusarDemonstracao(orgId);
     const c = await this.repo.buscar(orgId);
     const saida: { passo: string; status: number | string; total: number | null; nota?: string }[] = [];
     if (!c) return [{ passo: 'conexão', status: 'desconectado', total: null, nota: 'Conecte a conta John Deere.' }];
@@ -349,6 +364,7 @@ export class ConexaoDeereService {
    * É uma configuração que fica na conta da Deere: só roda quando o administrador pede.
    */
   async ativarAviso(orgId: string): Promise<{ ativo: true; novo: boolean; id: string | null; status: string | null; avisos: { evento: string; situacao: 'criado' | 'ja-ligado' | 'reativado' | 'recusado'; detalhe: string | null }[] }> {
+    this.recusarDemonstracao(orgId);
     const uri = this.enderecoDoAviso();
     if (!uri) throw new BadRequestException({ codigo: 'AVISO_SEM_ENDERECO', mensagem: 'O servidor precisa de um endereço público em https para receber o aviso da John Deere.' });
     const orgs = await this.organizacoesDaDeere(orgId);

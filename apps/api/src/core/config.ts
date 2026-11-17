@@ -65,6 +65,11 @@ const EnvSchema = z.object({
   ADMIN_EMAIL: z.string().trim().toLowerCase().pipe(z.email()).optional(),
   ADMIN_SENHA: z.string().min(10, 'ADMIN_SENHA precisa de pelo menos 10 caracteres').max(200).optional(),
   ADMIN_NOME: z.string().trim().min(1).max(80).default('Administrador'),
+  /**
+   * E-mail da conta de demonstração (a que o revisor da Apple usa). A fazenda dessa conta passa a ler os dados de
+   * exemplo (FakeProvedor) em vez da John Deere, sem WhatsApp e sem nada que escreva fora. A conta tem de existir.
+   */
+  DEMO_EMAIL: z.string().trim().toLowerCase().pipe(z.email()).optional(),
   /** Origens de navegador liberadas, separadas por vírgula. Vazio = nenhuma (o app nativo não precisa). */
   CORS_ORIGENS: z.string().default(''),
   /** Chave da API da Anthropic. Sem ela, o assistente responde que não foi ligado. */
@@ -126,6 +131,8 @@ export interface Config {
   adminEmail: string;
   adminSenha: string;
   adminNome: string;
+  /** E-mail da conta de demonstração; nulo = nenhuma fazenda é de demonstração. */
+  demoEmail?: string | null;
   corsOrigens: string[];
   /** Chave da IA (só no servidor) e o modelo usado pelo assistente. */
   iaChave: string | null;
@@ -205,6 +212,7 @@ export function carregarConfig(env: NodeJS.ProcessEnv = process.env): Config {
     adminEmail: ADMIN_EMAIL ?? ADMIN_DEV.email,
     adminSenha: ADMIN_SENHA ?? ADMIN_DEV.senha,
     adminNome: r.data.ADMIN_NOME,
+    demoEmail: r.data.DEMO_EMAIL ?? null,
     corsOrigens: r.data.CORS_ORIGENS.split(',').map((o) => o.trim()).filter(Boolean),
     iaChave: r.data.ANTHROPIC_API_KEY ?? null,
     iaModelo: r.data.ANTHROPIC_MODELO,

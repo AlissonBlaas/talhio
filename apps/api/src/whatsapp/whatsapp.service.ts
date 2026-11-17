@@ -1,5 +1,6 @@
 import { BadGatewayException, Inject, Injectable, Logger, ServiceUnavailableException, UnprocessableEntityException } from '@nestjs/common';
 import { normalizarTelefone, type CodigoWhatsapp, type EstadoWhatsapp, type GrupoWhatsapp } from '@talhio/shared';
+import { DemonstracaoService } from '../demonstracao/demonstracao.service.js';
 import { WhatsappRepository } from './whatsapp.repository.js';
 import { PROVEDOR_WHATSAPP, type AnexoWhatsapp, type ProvedorWhatsapp } from './whatsapp.tokens.js';
 
@@ -11,9 +12,18 @@ export class WhatsappService {
   constructor(
     @Inject(PROVEDOR_WHATSAPP) private readonly provedor: ProvedorWhatsapp,
     @Inject(WhatsappRepository) private readonly repo: WhatsappRepository,
+    @Inject(DemonstracaoService) private readonly demonstracao: DemonstracaoService,
   ) {}
 
+  /** A fazenda de demonstração não conecta número nem manda mensagem: o revisor não pode disparar nada para fora. */
+  private recusarDemonstracao(orgId: string): void {
+    if (this.demonstracao.ehDemo(orgId)) {
+      throw new ServiceUnavailableException({ codigo: 'WHATSAPP_INDISPONIVEL', mensagem: 'O WhatsApp não está disponível na fazenda de demonstração.' });
+    }
+  }
+
   async estado(orgId: string): Promise<EstadoWhatsapp> {
+    if (this.demonstracao.ehDemo(orgId)) return { estado: 'indisponivel', numero: null, conectadoEm: null, grupo: null };
     const conexao = await this.provedor.estado(orgId);
     if (conexao.estado === 'indisponivel' || conexao.estado === 'desconectado') return { ...conexao, grupo: null };
     const linha = await this.repo.buscar(orgId);
@@ -21,6 +31,7 @@ export class WhatsappService {
   }
 
   private async exigirConectado(orgId: string): Promise<void> {
+    this.recusarDemonstracao(orgId);
     if ((await this.provedor.estado(orgId)).estado !== 'conectado') {
       throw new UnprocessableEntityException({ codigo: 'WHATSAPP_NAO_CONECTADO', mensagem: 'O WhatsApp da fazenda não está conectado. Conecte em Configurações.' });
     }
@@ -72,6 +83,7 @@ export class WhatsappService {
 
   /** Gera o código que a pessoa digita no WhatsApp (Aparelhos conectados > Conectar com número de telefone). */
   async pedirCodigo(orgId: string, telefone: string): Promise<CodigoWhatsapp> {
+    this.recusarDemonstracao(orgId);
     if ((await this.provedor.estado(orgId)).estado === 'indisponivel') {
       throw new ServiceUnavailableException({ codigo: 'WHATSAPP_INDISPONIVEL', mensagem: 'O WhatsApp ainda não está ligado neste servidor.' });
     }
@@ -83,12 +95,14 @@ export class WhatsappService {
     }
   }
 
-  desconectar(orgId: string): Promise<void> {
+  async desconectar(orgId: string): Promise<void> {
+    this.recusarDemonstracao(orgId);
     return this.provedor.desconectar(orgId);
   }
 
   /** Para os outros módulos (escala, relatório): manda o texto, ou diz com clareza por que não deu. */
   async enviarTexto(orgId: string, telefone: string, texto: string): Promise<void> {
+    this.recusarDemonstracao(orgId);
     if ((await this.provedor.estado(orgId)).estado !== 'conectado') {
       throw new UnprocessableEntityException({ codigo: 'WHATSAPP_NAO_CONECTADO', mensagem: 'O WhatsApp da fazenda não está conectado. Conecte em Config.' });
     }
@@ -102,6 +116,7 @@ export class WhatsappService {
 
   /** Mensagem de teste: vai para o grupo escolhido ou, sem grupo, para o próprio número conectado. */
   async enviarTeste(orgId: string): Promise<void> {
+    this.recusarDemonstracao(orgId);
     if ((await this.estado(orgId)).grupo) return void (await this.notificarGrupo(orgId, '🚜 Talhio conectado! As notificações da fazenda vão chegar neste grupo.'));
     const { estado, numero } = await this.provedor.estado(orgId);
     if (estado !== 'conectado' || !numero) {

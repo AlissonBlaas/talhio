@@ -12,6 +12,7 @@ import { TalhoesService } from '../talhoes/talhoes.service.js';
 import { FakeWhatsapp, GRUPOS_DE_EXEMPLO } from '../whatsapp/fake-whatsapp.js';
 import { WhatsappRepository } from '../whatsapp/whatsapp.repository.js';
 import { WhatsappService } from '../whatsapp/whatsapp.service.js';
+import { DemonstracaoService } from '../demonstracao/demonstracao.service.js';
 import { PROVEDOR_WHATSAPP } from '../whatsapp/whatsapp.tokens.js';
 import { RelatoriosEnvioService } from './relatorios-envio.service.js';
 import { RelatoriosService } from './relatorios.service.js';
@@ -22,7 +23,7 @@ const AGORA = new Date('2026-11-10T15:00:00.000Z');
 async function montar() {
   const fake = new FakeWhatsapp();
   const modulo = await Test.createTestingModule({
-    providers: [RelatoriosService, RelatoriosEnvioService, PlanosRepository, MaquinasService, LarguraImplementoRepository, TalhoesService, TalhoesRepository, EscalaRepository, WhatsappService, WhatsappRepository, { provide: BANCO, useValue: await criarBancoDeTeste() }, { provide: PROVEDOR_MAQUINAS, useValue: new FakeProvedor(() => AGORA) }, { provide: PROVEDOR_WHATSAPP, useValue: fake }],
+    providers: [RelatoriosService, RelatoriosEnvioService, PlanosRepository, MaquinasService, LarguraImplementoRepository, TalhoesService, TalhoesRepository, EscalaRepository, WhatsappService, WhatsappRepository, { provide: BANCO, useValue: await criarBancoDeTeste() }, { provide: PROVEDOR_MAQUINAS, useValue: new FakeProvedor(() => AGORA) }, { provide: PROVEDOR_WHATSAPP, useValue: fake }, { provide: DemonstracaoService, useValue: { ehDemo: () => false } }],
   }).compile();
   return { fake, envio: modulo.get(RelatoriosEnvioService), relatorios: modulo.get(RelatoriosService), whatsapp: modulo.get(WhatsappService) };
 }

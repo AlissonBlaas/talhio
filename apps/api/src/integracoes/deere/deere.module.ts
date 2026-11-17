@@ -17,6 +17,8 @@ import { ConexaoDeereRepository } from './conexao-deere.repository.js';
 import { ConexaoDeereService } from './conexao-deere.service.js';
 import { DEERE_HTTP } from './deere.http.js';
 import { PROVEDOR_MAQUINAS } from './deere.tokens.js';
+import { ProvedorPorFazenda } from './provedor-por-fazenda.js';
+import { DemonstracaoService } from '../../demonstracao/demonstracao.service.js';
 
 const logDaDeere = new Logger('Deere');
 
@@ -43,28 +45,30 @@ const logDaDeere = new Logger('Deere');
     { provide: DEERE_HTTP, useValue: fetch },
     {
       provide: PROVEDOR_MAQUINAS,
-      inject: [CONFIG, ConexaoDeereService, AtividadeDeereRepository, UsoDiarioRepository, LarguraImplementoRepository, CombustivelAcumuladoRepository, AreaOperacoesRepository],
-      useFactory: (config: Config, conexao: ConexaoDeereService, armazem: AtividadeDeereRepository, diario: UsoDiarioRepository, larguras: LarguraImplementoRepository, combustivel: CombustivelAcumuladoRepository, areas: AreaOperacoesRepository): ProvedorMaquinas =>
-        config.deereProvedor === 'fake' || !config.deere
-          ? new FakeProvedor(undefined, config.pastaGen4 ? lerPastaGen4(config.pastaGen4) : null)
-          : new DeereProvedor({
-              clientId: config.deere.clientId,
-              clientSecret: config.deere.clientSecret,
-              baseUrl: config.deere.baseUrl,
-              equipamentosUrl: config.deere.equipamentosUrl,
-              aempUrl: config.deere.aempUrl,
-              obterToken: (orgId) => conexao.obterToken(orgId),
-              obterOrganizacao: (orgId) => conexao.organizacaoDaDeere(orgId),
-              obterOrganizacoes: (orgId) => conexao.organizacoesDaDeere(orgId),
-              armazem,
-              diario,
-              areas,
-              combustivel,
-              combustivelPeloTanque: config.combustivelPeloTanque,
-              obterLarguras: (orgId) => larguras.todas(orgId),
-              // Cada chamada à John Deere vira uma linha no log do servidor (LOG_DEERE=0 desliga).
-              registrar: config.logDeere ? (linha) => logDaDeere.log(linha) : undefined,
-            }),
+      inject: [CONFIG, ConexaoDeereService, AtividadeDeereRepository, UsoDiarioRepository, LarguraImplementoRepository, CombustivelAcumuladoRepository, AreaOperacoesRepository, DemonstracaoService],
+      useFactory: (config: Config, conexao: ConexaoDeereService, armazem: AtividadeDeereRepository, diario: UsoDiarioRepository, larguras: LarguraImplementoRepository, combustivel: CombustivelAcumuladoRepository, areas: AreaOperacoesRepository, demonstracao: DemonstracaoService): ProvedorMaquinas => {
+        if (config.deereProvedor === 'fake' || !config.deere) return new FakeProvedor(undefined, config.pastaGen4 ? lerPastaGen4(config.pastaGen4) : null);
+        const deere = new DeereProvedor({
+          clientId: config.deere.clientId,
+          clientSecret: config.deere.clientSecret,
+          baseUrl: config.deere.baseUrl,
+          equipamentosUrl: config.deere.equipamentosUrl,
+          aempUrl: config.deere.aempUrl,
+          obterToken: (orgId) => conexao.obterToken(orgId),
+          obterOrganizacao: (orgId) => conexao.organizacaoDaDeere(orgId),
+          obterOrganizacoes: (orgId) => conexao.organizacoesDaDeere(orgId),
+          armazem,
+          diario,
+          areas,
+          combustivel,
+          combustivelPeloTanque: config.combustivelPeloTanque,
+          obterLarguras: (orgId) => larguras.todas(orgId),
+          // Cada chamada à John Deere vira uma linha no log do servidor (LOG_DEERE=0 desliga).
+          registrar: config.logDeere ? (linha) => logDaDeere.log(linha) : undefined,
+        });
+        // A fazenda de demonstração (a do revisor da Apple) lê os dados de exemplo: nada dela chega à John Deere.
+        return new ProvedorPorFazenda(new FakeProvedor(undefined, null), deere, (orgId) => demonstracao.ehDemo(orgId));
+      },
     },
   ],
   exports: [PROVEDOR_MAQUINAS, ConexaoDeereService, SincronizacaoDeereService, LarguraImplementoRepository, AtividadeDeereRepository, ConsumoDeereRepository],

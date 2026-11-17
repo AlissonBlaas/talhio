@@ -34,6 +34,13 @@ const PAUSA_ENTRE_MENSAGENS_MS = [1_500, 3_500] as const;
 
 const silencio = { level: 'silent', trace() {}, debug() {}, info() {}, warn() {}, error() {}, fatal() {}, child() { return silencio; } };
 
+/** Texto curto de um registro do Baileys: só a mensagem e a mensagem do erro, nunca o objeto inteiro (pode ter chaves). */
+const resumo = (obj: unknown, msg?: string): string => {
+  const erro = (obj as { err?: { message?: string } } | undefined)?.err?.message;
+  const texto = [typeof obj === 'string' ? obj : msg, erro].filter(Boolean).join(' | ');
+  return texto.slice(0, 300);
+};
+
 /** Quatro últimos dígitos: o log nunca guarda o número inteiro. */
 const mascara = (telefone: string) => `…${telefone.slice(-4)}`;
 const codigoDoErro = (erro: unknown): number | undefined => (erro as { output?: { statusCode?: number } } | undefined)?.output?.statusCode;
@@ -50,6 +57,8 @@ export class BaileysWhatsapp implements ProvedorWhatsapp, OnModuleInit, OnModule
   private readonly sessoes = new Map<string, Sessao>();
   /** Evita abrir dois sockets para a mesma fazenda ao mesmo tempo (o WhatsApp derruba os dois com "conflict"). */
   private readonly abrindo = new Map<string, Promise<void>>();
+  /** A última gravação de credenciais de cada fazenda, para ninguém ler o Redis com uma gravação pela metade. */
+  private readonly gravacoes = new Map<string, Promise<void>>();
   /** Fila de envio por fazenda, para espaçar as mensagens. */
   private readonly filas = new Map<string, Promise<unknown>>();
   private versao: [number, number, number] | null = null;
@@ -129,7 +138,16 @@ export class BaileysWhatsapp implements ProvedorWhatsapp, OnModuleInit, OnModule
         },
       },
     };
-    const salvar = () => this.armazem.gravarCredenciais(orgId, cifrar(JSON.stringify(state.creds, BufferJSON.replacer), this.chave));
+    // Uma gravação por vez, na ordem, e com como esperar por todas (`gravacoes`): quando a pessoa digita o código, o
+    // WhatsApp manda as credenciais do aparelho e, logo em seguida, pede para reabrir a conexão. Se a reabertura lesse
+    // o Redis antes de essa gravação terminar, voltaria com as credenciais de antes do pareamento, o WhatsApp não
+    // reconheceria o aparelho e o celular mostraria "não foi possível conectar".
+    const salvar = () => {
+      const texto = cifrar(JSON.stringify(state.creds, BufferJSON.replacer), this.chave);
+      const fila = (this.gravacoes.get(orgId) ?? Promise.resolve()).catch(() => undefined).then(() => this.armazem.gravarCredenciais(orgId, texto));
+      this.gravacoes.set(orgId, fila);
+      return fila;
+    };
     return { state, salvar };
   }
 
@@ -155,20 +173,35 @@ export class BaileysWhatsapp implements ProvedorWhatsapp, OnModuleInit, OnModule
     return p;
   }
 
+  /** O Baileys conta o que o WhatsApp responde (pareamento aceito, reinício pedido, erros). Só de info para cima. */
+  private loggerDoBaileys(orgId: string) {
+    const registrar = (nivel: 'log' | 'warn' | 'error') => (obj: unknown, msg?: string) => {
+      const t = resumo(obj, msg);
+      if (t) this.log[nivel](`baileys (${orgId.slice(0, 8)}): ${t}`);
+    };
+    const logger = { level: 'info', trace() {}, debug() {}, info: registrar('log'), warn: registrar('warn'), error: registrar('error'), fatal: registrar('error'), child: () => logger };
+    return logger;
+  }
+
   private async criarSocket(orgId: string, pareamento: Pareamento | null): Promise<void> {
     if (this.encerrando) return;
     this.fecharSocket(orgId);
+    // Espera o que ainda está sendo gravado das credenciais antes de ler (ver `salvar`).
+    await this.gravacoes.get(orgId)?.catch(() => undefined);
     const { state, salvar } = await this.estadoDeAutenticacao(orgId);
+    const versao = await this.versaoDoWhatsapp();
+    this.log.log(`abrindo socket (${pareamento ? 'pareamento' : 'normal'}), WhatsApp Web ${versao.join('.')}`);
     const socket = makeWASocket({
-      version: await this.versaoDoWhatsapp(),
+      version: versao,
       auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, silencio as never) },
       printQRInTerminal: false,
-      logger: silencio as never,
+      logger: this.loggerDoBaileys(orgId) as never,
       // O pareamento por código só é aceito para um navegador conhecido.
       browser: ['Ubuntu', 'Chrome', '22.04.4'],
       syncFullHistory: false,
       markOnlineOnConnect: false,
-      shouldSyncHistoryMessage: () => false,
+      // Não desligar a sincronização inicial (shouldSyncHistoryMessage: () => false): o Baileys avisa que sem ela perde o
+      // mapeamento de LIDs e a sessão fica instável, e o celular recusa o pareamento ("não foi possível conectar").
     });
     const sessao: Sessao = { socket, situacao: pareamento ? 'pareando' : 'abrindo', numero: null, tentativas: this.sessoes.get(orgId)?.tentativas ?? 0 };
     this.sessoes.set(orgId, sessao);
@@ -189,6 +222,9 @@ export class BaileysWhatsapp implements ProvedorWhatsapp, OnModuleInit, OnModule
   ): Promise<void> {
     // Evento de um socket que já foi trocado por outro: ignora.
     if (this.sessoes.get(orgId)?.socket !== socket) return;
+    this.log.log(
+      `evento (${sessao.situacao}): conexão=${u.connection ?? '-'} qr=${u.qr ? 'sim' : 'não'} me=${creds.me ? (creds.me.id.includes(':') ? 'aparelho' : 'provisório') : 'não'} erro=${codigoDoErro(u.lastDisconnect?.error) ?? '-'} ${u.lastDisconnect?.error?.message ?? ''}`.trim(),
+    );
 
     if (u.qr) {
       if (pareamento && !pareamento.pedido) {
@@ -262,6 +298,9 @@ export class BaileysWhatsapp implements ProvedorWhatsapp, OnModuleInit, OnModule
   }
 
   private async esquecer(orgId: string): Promise<void> {
+    // Gravação em andamento terminando DEPOIS de apagar ressuscitaria as credenciais velhas.
+    await this.gravacoes.get(orgId)?.catch(() => undefined);
+    this.gravacoes.delete(orgId);
     await Promise.all([this.armazem.apagarTudo(orgId), this.repo.apagar(orgId)]);
   }
 

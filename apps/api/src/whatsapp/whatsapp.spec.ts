@@ -11,12 +11,13 @@ import { candidatos } from './baileys-whatsapp.js';
 import { FakeWhatsapp, GRUPOS_DE_EXEMPLO, WhatsappIndisponivel } from './fake-whatsapp.js';
 import { WhatsappRepository } from './whatsapp.repository.js';
 import { WhatsappService } from './whatsapp.service.js';
+import { DemonstracaoService } from '../demonstracao/demonstracao.service.js';
 import { PROVEDOR_WHATSAPP, type ProvedorWhatsapp } from './whatsapp.tokens.js';
 
 async function montar(provedor: ProvedorWhatsapp) {
   const db = await criarBancoDeTeste();
   const modulo = await Test.createTestingModule({
-    providers: [WhatsappRepository, WhatsappService, { provide: BANCO, useValue: db }, { provide: PROVEDOR_WHATSAPP, useValue: provedor }],
+    providers: [WhatsappRepository, WhatsappService, { provide: BANCO, useValue: db }, { provide: PROVEDOR_WHATSAPP, useValue: provedor }, { provide: DemonstracaoService, useValue: { ehDemo: () => false } }],
   }).compile();
   return { service: modulo.get(WhatsappService), repo: modulo.get(WhatsappRepository), db };
 }
