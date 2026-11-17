@@ -332,6 +332,14 @@ Backend (`apps/api/src`)
   troca) ficam desligados com o texto do que falta e `ConectarWhatsapp` (de `features/whatsapp`) mostra embaixo o
   link para a Config. Na escala do plano o botão vira "Salvar escala" (grava sem enviar) com o aviso. A IA ganhou o
   passo a passo de conectar o WhatsApp e a John Deere no guia do aplicativo. `shared/lib/whatsapp.ts` ficou sem uso.
+- Desenhar talhão com detalhe (17/11, o Alisson: "os botões estão gigantescos" e "se eu me aproximar dá Map data not
+  yet available"): a foto de satélite tem `maxzoom` 17 no estilo (`EXPO_PUBLIC_SATELITE_ZOOM_MAXIMO` muda) e a câmera
+  vai até 21: acima do 17 o mapa AMPLIA a foto em vez de pedir à Esri um nível que ela não tem no campo. Cantos do
+  desenho menores (raio 6; selecionado 8; a área de toque é medida na tela, `RAIO_TOQUE`). `useDesenhoTalhao` expõe
+  `meios` e `inserirNoMeio(depoisDe)`: cada lado tem um ponto branco no meio; tocar nele cria um canto ali, já
+  selecionado, e o toque seguinte o leva ao lugar (é como se acompanha uma curva). Área abaixo de 10 ha aparece com
+  duas casas. Máscara de telefone em `mascaraDeTelefone` (`packages/shared`), usada no WhatsApp. `BaileysWhatsapp`
+  grava as credenciais em fila (`gravacoes`) e espera a fila antes de reabrir o socket (corrida no pareamento).
 - Resposta da IA organizada (15/11): as instruções mandam começar pela frase com o número em **negrito** e, quando há
   várias partes, tabela (até 4 colunas), título `## ` e tópicos `- `; só essa marcação é permitida. No app,
   `features/assistente/formatar.ts` (`lerBlocos`, puro, aguenta resposta pela metade) e `components/TextoFormatado.tsx`

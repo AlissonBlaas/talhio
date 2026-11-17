@@ -22,7 +22,8 @@ type Props = {
   aoDefinirLinha: () => void;
 };
 
-const area = (ha: number) => ha.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+// Área pequena aparece com duas casas: ao desenhar de perto, "0,0 ha" parece erro e a pessoa não vê a área crescer.
+const area = (ha: number) => ha.toLocaleString('pt-BR', ha < 10 ? { minimumFractionDigits: 2, maximumFractionDigits: 2 } : { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
 export function PainelDesenho(props: Props) {
   const { bottom } = useSafeAreaInsets();

@@ -16,7 +16,9 @@ export const ESTILO_SATELITE: StyleSpecification = {
       type: 'raster',
       tiles: [TILES],
       tileSize: 256,
-      maxzoom: 19,
+      // Acima disso a Esri não tem foto em boa parte do campo e devolve um quadro cinza "Map data not yet available".
+      // Com o teto em 17, o mapa AMPLIA a foto do nível 17 nos zooms maiores em vez de pedir um nível que não existe.
+      maxzoom: Number(process.env.EXPO_PUBLIC_SATELITE_ZOOM_MAXIMO) || 17,
       attribution: 'Imagem: Esri, Maxar, Earthstar Geographics',
     },
   },

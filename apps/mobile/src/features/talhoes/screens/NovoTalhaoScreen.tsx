@@ -17,10 +17,12 @@ import { useDesenhoTalhao, type Canto } from '../hooks/useDesenhoTalhao';
 import { useTalhoes } from '../hooks/useTalhoes';
 import { limitesDosTalhoes } from '../limites';
 
-const DICAS = ['Toque no primeiro canto do talhão', 'Agora toque no próximo canto', 'Mais um canto para fechar a área', 'Toque num canto para mover ou remover, ou salve'];
+const DICAS = ['Toque no primeiro canto do talhão', 'Agora toque no próximo canto', 'Mais um canto para fechar a área', 'Toque num canto para mover. Toque no ponto branco de um lado para criar um canto ali.'];
 
 /** Distância máxima, em pontos de tela, para um toque contar como toque num canto. */
-const RAIO_TOQUE = 30;
+const RAIO_TOQUE = 26;
+/** O mesmo para o ponto do meio de um lado: menor, para não roubar o toque de quem quer pôr um canto novo perto da linha. */
+const RAIO_TOQUE_DO_MEIO = 18;
 
 /** A mesma área, aumentada para os lados: mostra a vizinhança do talhão. */
 function arredores(limites: [number, number, number, number] | null, fator = 1.2): [number, number, number, number] | null {
@@ -60,8 +62,21 @@ export function NovoTalhaoScreen() {
         maisPerto = indice;
       }
     });
-    if (maisPerto >= 0) desenho.selecionar(maisPerto);
-    else if (desenho.selecionado !== null) desenho.moverSelecionado(lngLat);
+    if (maisPerto >= 0) return desenho.selecionar(maisPerto);
+    if (desenho.selecionado !== null) return desenho.moverSelecionado(lngLat);
+    // Nenhum canto por perto e nada selecionado: tocou no meio de um lado? Então nasce um canto ali.
+    const meiosNaTela = await Promise.all(desenho.meios.map((meio) => controle.current?.projetar(meio)));
+    let lado = -1;
+    let menorDoMeio = RAIO_TOQUE_DO_MEIO;
+    meiosNaTela.forEach((p, indice) => {
+      if (!p) return;
+      const distancia = Math.hypot(p[0] - ponto[0], p[1] - ponto[1]);
+      if (distancia < menorDoMeio) {
+        menorDoMeio = distancia;
+        lado = indice;
+      }
+    });
+    if (lado >= 0) desenho.inserirNoMeio(lado);
     else desenho.adicionar(lngLat);
   };
 
@@ -127,7 +142,7 @@ export function NovoTalhaoScreen() {
               </View>
               <Text style={styles.dicaTexto}>
                 {desenho.selecionado !== null
-                  ? `Canto ${desenho.selecionado + 1} selecionado: toque no lugar certo para mover`
+                  ? `Canto ${desenho.selecionado + 1} selecionado: toque onde ele deve ficar, ou em Remover para tirar`
                   : DICAS[Math.min(desenho.cantos.length, 3)]}
               </Text>
             </View>

@@ -34,7 +34,8 @@ const GESTOS_DESLIGADOS = { dragPan: false, touchZoom: false, doubleTapZoom: fal
 const SEM_MARGEM: Margem = { top: 0, right: 0, bottom: 0, left: 0 };
 /** Permite afastar até ver uma região inteira e aproximar até o detalhe da imagem de satélite. */
 const ZOOM_MINIMO = 3;
-const ZOOM_MAXIMO = 19;
+/** Além do nível da foto (ver `estilo.ts`): para desenhar detalhe, a foto ampliada basta. */
+const ZOOM_MAXIMO = 21;
 
 /**
  * O mapa do Talhio. É o único lugar do app que conhece a biblioteca de mapas.

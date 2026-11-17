@@ -12,16 +12,19 @@ export function useDesenhoTalhao() {
   const [selecionado, setSelecionado] = useState<number | null>(null);
 
   // Recalculado só quando os cantos ou a seleção mudam (digitar o nome do talhão não mexe no mapa).
-  const { contorno, geo } = useMemo(() => {
+  const { contorno, geo, meios } = useMemo(() => {
     const primeiro = cantos[0];
     const fechado: Canto[] = primeiro && cantos.length >= 3 ? [...cantos, primeiro] : cantos;
     const poligono: Poligono | null = cantos.length >= 3 ? { type: 'Polygon', coordinates: [fechado] } : null;
+    // O meio de cada lado (inclusive o que fecha a área): tocar ali cria um canto entre os dois.
+    const meios = fechado.slice(0, -1).map((a, i): Canto => { const b = fechado[i + 1]!; return [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]; });
     // Tudo o que o mapa desenha: a área (3 cantos ou mais), a linha que liga os cantos e os cantos.
     const colecao: GeoJSON.FeatureCollection = {
       type: 'FeatureCollection',
       features: [
         ...(poligono ? [{ type: 'Feature' as const, properties: { tipo: 'area' }, geometry: poligono }] : []),
         ...(cantos.length >= 2 ? [{ type: 'Feature' as const, properties: { tipo: 'linha' }, geometry: { type: 'LineString' as const, coordinates: fechado } }] : []),
+        ...(cantos.length >= 2 ? meios.map((meio, depoisDe) => ({ type: 'Feature' as const, properties: { tipo: 'meio', depoisDe }, geometry: { type: 'Point' as const, coordinates: meio } })) : []),
         ...cantos.map((canto, indice) => ({
           type: 'Feature' as const,
           properties: { tipo: 'canto', indice, selecionado: indice === selecionado },
@@ -29,7 +32,7 @@ export function useDesenhoTalhao() {
         })),
       ],
     };
-    return { contorno: poligono, geo: colecao };
+    return { contorno: poligono, geo: colecao, meios: cantos.length >= 2 ? meios : [] };
   }, [cantos, selecionado]);
 
   return {
@@ -38,7 +41,19 @@ export function useDesenhoTalhao() {
     geo,
     selecionado,
     areaHa: contorno ? areaHaDoPoligono(contorno) : 0,
+    /** O meio de cada lado, na ordem dos cantos: `meios[i]` fica entre o canto `i` e o seguinte. */
+    meios,
     adicionar: (canto: Canto) => setCantos((atuais) => [...atuais, canto]),
+    /**
+     * Cria um canto no meio do lado que começa no canto `depoisDe` e já o deixa selecionado: o próximo toque no mapa
+     * leva o canto novo para o lugar certo. É assim que se acompanha uma curva sem redesenhar o talhão.
+     */
+    inserirNoMeio: (depoisDe: number) => {
+      const meio = meios[depoisDe];
+      if (!meio) return;
+      setCantos((atuais) => [...atuais.slice(0, depoisDe + 1), meio, ...atuais.slice(depoisDe + 1)]);
+      setSelecionado(depoisDe + 1);
+    },
     /** Seleciona um canto; tocar de novo no mesmo canto tira a seleção. */
     selecionar: (indice: number) => setSelecionado((atual) => (atual === indice ? null : indice)),
     /** Leva o canto selecionado para a nova posição e encerra a seleção. */
