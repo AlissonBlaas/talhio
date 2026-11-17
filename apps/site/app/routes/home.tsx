@@ -121,7 +121,6 @@ export default function Home() {
                 Planeje <i aria-hidden="true">/</i> Opere <i aria-hidden="true">/</i> Relatórios
               </span>
             </h1>
-            <p className="heroi-sub">O agrônomo planeja pelo aplicativo. O operador recebe tudo no monitor da máquina.</p>
             <div className="heroi-acoes">
               <a className="botao" href={contato.href} {...destino}>
                 {contato.rotulo}
