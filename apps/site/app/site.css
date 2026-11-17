@@ -504,22 +504,36 @@ h1 {
   gap: 64px;
 }
 
-.pilares {
+/* Os recursos: o centro da página. */
+.recursos {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 20px;
 }
 
-.pilares li {
+.recursos li {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  font: 600 0.98rem/1.3 var(--titulo);
-  color: var(--mata);
+  padding: 28px;
+  border: 1px solid var(--giz);
+  border-radius: var(--raio);
+  background: var(--papel);
 }
 
-.pilares svg {
-  color: var(--folha);
+.recursos span {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  margin-bottom: 6px;
+  border-radius: 50%;
+  background: var(--mata);
+  color: var(--milho);
+}
+
+.recursos p {
+  color: var(--tinta-suave);
 }
 
 /* O aplicativo, com as passadas da marca por trás. */
@@ -1094,6 +1108,10 @@ h1 {
     justify-content: space-between;
   }
 
+  .recursos {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .duas-colunas,
   .painel,
   .para-quem {
@@ -1136,8 +1154,8 @@ h1 {
     font-size: 1rem;
   }
 
-  .pilares {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .recursos {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .cartao {

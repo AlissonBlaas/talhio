@@ -2,7 +2,7 @@ import { Celular } from "../componentes/Celular";
 import { FundoDoCampo } from "../componentes/FundoDoCampo";
 import { Icone, Marca } from "../componentes/Icone";
 import { MapaDaFazenda } from "../componentes/MapaDaFazenda";
-import { conversa, escala, integracao, noMonitor, paraQuem, perguntas, pilares, relatorio, sobreORelatorio } from "../conteudo";
+import { conversa, escala, integracao, noMonitor, paraQuem, perguntas, recursos, relatorio, sobreORelatorio } from "../conteudo";
 import { contato, site } from "../site";
 import type { Route } from "./+types/home";
 
@@ -96,9 +96,9 @@ export default function Home() {
             Talhio
           </a>
           <nav aria-label="Seções da página">
-            <a href="#produto">Produto</a>
-            <a href="#monitor">No monitor</a>
+            <a href="#recursos">Recursos</a>
             <a href="#relatorios">Relatórios</a>
+            <a href="#monitor">No monitor</a>
             <a href="#john-deere">John Deere</a>
             <a href="#perguntas">Perguntas</a>
           </nav>
@@ -145,14 +145,6 @@ export default function Home() {
                 <h2>Do planejamento ao relatório, tudo em um só lugar.</h2>
                 <p>Organize as operações da fazenda, acompanhe a execução em tempo real e receba relatórios prontos, feitos com os dados das suas máquinas.</p>
               </div>
-              <ul className="pilares">
-                {pilares.map((pilar) => (
-                  <li key={pilar.titulo}>
-                    <Icone nome={pilar.icone} tamanho={28} />
-                    {pilar.titulo}
-                  </li>
-                ))}
-              </ul>
             </div>
             <div className="vitrine">
               <svg className="vitrine-arcos" viewBox="0 0 400 300" fill="none" strokeLinecap="round" aria-hidden="true">
@@ -165,31 +157,23 @@ export default function Home() {
           </div>
         </section>
 
-        <section id="monitor" className="secao">
+        <section id="recursos" className="secao">
           <div className="largura">
-            <div className="faixa duas-colunas">
-              <div className="faixa-mapa">
-                <MapaDaFazenda />
-                <div className="faixa-legenda" aria-hidden="true">
-                  <span>
-                    <i className="traco traco-feito" />
-                    Realizado <strong>72%</strong>
-                  </span>
-                  <span>
-                    <i className="traco traco-falta" />
-                    Pendente <strong>28%</strong>
-                  </span>
-                </div>
-              </div>
-              <div>
-                <div className="secao-intro">
-                  <p className="sobretitulo">Direto no monitor</p>
-                  <h2>O que você planeja chega ao monitor da máquina.</h2>
-                  <p>O operador liga o trator e o serviço do dia já está lá. Tudo sai do nosso aplicativo, sem pendrive, sem papel e sem treinamento.</p>
-                </div>
-                <Lista itens={noMonitor} />
-              </div>
+            <div className="secao-intro">
+              <p className="sobretitulo">O que o Talhio faz</p>
+              <h2>Menos rádio e planilha. Mais tempo na lavoura.</h2>
             </div>
+            <ul className="recursos">
+              {recursos.map((recurso) => (
+                <li key={recurso.titulo}>
+                  <span>
+                    <Icone nome={recurso.icone} tamanho={26} />
+                  </span>
+                  <h3>{recurso.titulo}</h3>
+                  <p>{recurso.texto}</p>
+                </li>
+              ))}
+            </ul>
           </div>
         </section>
 
@@ -239,6 +223,34 @@ export default function Home() {
                 ))}
               </div>
             </article>
+          </div>
+        </section>
+
+        <section id="monitor" className="secao">
+          <div className="largura">
+            <div className="faixa duas-colunas">
+              <div className="faixa-mapa">
+                <MapaDaFazenda />
+                <div className="faixa-legenda" aria-hidden="true">
+                  <span>
+                    <i className="traco traco-feito" />
+                    Realizado <strong>72%</strong>
+                  </span>
+                  <span>
+                    <i className="traco traco-falta" />
+                    Pendente <strong>28%</strong>
+                  </span>
+                </div>
+              </div>
+              <div>
+                <div className="secao-intro">
+                  <p className="sobretitulo">Direto no monitor</p>
+                  <h2>O que você planeja chega ao monitor da máquina.</h2>
+                  <p>O operador liga o trator e o serviço do dia já está lá. Tudo sai do nosso aplicativo, sem pendrive, sem papel e sem treinamento.</p>
+                </div>
+                <Lista itens={noMonitor} />
+              </div>
+            </div>
           </div>
         </section>
 

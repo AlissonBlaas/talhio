@@ -1,11 +1,13 @@
 /** Todo o texto da página. O que está aqui também alimenta os dados estruturados (SEO). */
 
-/** O que o Talhio cobre, do começo ao fim do serviço. */
-export const pilares = [
-  { icone: "plano", titulo: "Planejamento de operações" },
-  { icone: "mapa", titulo: "Acompanhamento em tempo real" },
-  { icone: "relatorio", titulo: "Relatórios automáticos" },
-  { icone: "assistente", titulo: "IA com os dados da fazenda" },
+/** O que o aplicativo faz hoje. É o centro da página. */
+export const recursos = [
+  { icone: "mapa", titulo: "Monitoramento em tempo real", texto: "Cada máquina no mapa de satélite, com o estado dela: trabalhando, parada ou sem sinal. Máquina fora da tela tem um aviso na borda que leva até ela." },
+  { icone: "assistente", titulo: "IA que conhece a sua fazenda", texto: "Pergunte por texto ou por voz. Ela responde com os números das suas máquinas e talhões e ainda ensina a usar o aplicativo." },
+  { icone: "talhao", titulo: "Criação de talhões", texto: "Desenhe o talhão no mapa com o dedo, ajuste cada canto e veja a área na hora. Ou importe do monitor, de um KML ou do Operations Center." },
+  { icone: "relatorio", titulo: "Relatórios automáticos", texto: "Hectares, horas de máquina, combustível e tempo parado do dia, da semana e do mês, por máquina e comparados com o período anterior." },
+  { icone: "plano", titulo: "Envio dos relatórios", texto: "O relatório sai em PDF, com a marca e o nome da fazenda, e vai para o grupo da equipe no WhatsApp com um toque." },
+  { icone: "escala", titulo: "Escala no WhatsApp", texto: "Defina quem opera cada máquina em cada turno. A escala e as trocas de operador chegam no grupo, sem ninguém digitar." },
 ] as const;
 
 /** A promessa central: o que o agrônomo planeja chega ao monitor da máquina. */
