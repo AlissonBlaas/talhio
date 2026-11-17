@@ -100,6 +100,11 @@ export class ClienteDeere {
     }
   }
 
+  /** PUT: troca um recurso que já existe (a Deere responde 204, sem corpo). */
+  async atualizar(orgId: string, caminho: string, corpo: unknown): Promise<void> {
+    await this.pedir<Response>(orgId, `${this.cfg.baseUrl}${caminho}`, { method: 'PUT', corpo }, true);
+  }
+
   /** GET que devolve o corpo como texto (a API ISO 15143-3 responde em XML). */
   async texto(orgId: string, url: string, aceita: string): Promise<string> {
     return (await this.pedir<Response>(orgId, url, undefined, true, aceita)).text();

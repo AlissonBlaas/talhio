@@ -26,7 +26,7 @@ export class ApiErro extends Error {
   }
 }
 
-type Metodo = 'GET' | 'POST' | 'DELETE';
+type Metodo = 'GET' | 'POST' | 'PUT' | 'DELETE';
 
 type Opcoes = {
   /** Rotas de login: não mandam token nem tentam renovar a sessão. */
@@ -109,6 +109,7 @@ async function baixarArquivo(caminho: string): Promise<Uint8Array> {
 export const apiClient = {
   get: (caminho: string) => requisitar('GET', caminho),
   post: (caminho: string, corpo: unknown, opcoes?: Opcoes) => requisitar('POST', caminho, corpo, opcoes),
+  put: (caminho: string, corpo: unknown) => requisitar('PUT', caminho, corpo),
   apagar: (caminho: string) => requisitar('DELETE', caminho),
   baixar: baixarArquivo,
 };

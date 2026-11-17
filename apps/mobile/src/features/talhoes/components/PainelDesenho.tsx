@@ -20,6 +20,8 @@ type Props = {
   aoSalvar: () => void;
   aoConcluir: () => void;
   aoDefinirLinha: () => void;
+  /** Editando um talhão que já existe: muda os textos e oferece apagar. Ausente = talhão novo. */
+  edicao?: { aoApagar: () => void; apagando: boolean };
 };
 
 // Área pequena aparece com duas casas: ao desenhar de perto, "0,0 ha" parece erro e a pessoa não vê a área crescer.
@@ -65,7 +67,7 @@ export function PainelDesenho(props: Props) {
         </View>
       ) : (
         <View style={styles.introducao}>
-          <Text style={styles.titulo}>Desenhe o novo talhão</Text>
+          <Text style={styles.titulo}>{props.edicao ? 'Redesenhe o talhão' : 'Desenhe o novo talhão'}</Text>
           <Text style={styles.descricao}>
             Siga a divisão que aparece na imagem: toque em cada canto do talhão, na ordem. Para corrigir um canto, toque nele e depois no lugar certo.
           </Text>
@@ -92,11 +94,21 @@ export function PainelDesenho(props: Props) {
             onPress={props.aoSalvar}
             style={[styles.botao, styles.salvar, pronto ? styles.primario : styles.desabilitado]}>
             <Text style={[styles.botaoTexto, { color: pronto ? cores.sobreMilho : cores.desabilitadoTexto }]}>
-              {salvando ? 'Salvando…' : 'Salvar talhão'}
+              {salvando ? 'Salvando…' : props.edicao ? 'Salvar alterações' : 'Salvar talhão'}
             </Text>
           </Pressable>
         </View>
       )}
+      {props.edicao && !salvo ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ disabled: salvando || props.edicao.apagando }}
+          disabled={salvando || props.edicao.apagando}
+          onPress={props.edicao.aoApagar}
+          style={styles.apagar}>
+          <Text style={styles.apagarTexto}>{props.edicao.apagando ? 'Apagando…' : 'Apagar talhão'}</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -158,6 +170,8 @@ const styles = StyleSheet.create({
   botaoTexto: { fontFamily: fontes.semi, fontSize: 14 },
   secundario: { flex: 1, backgroundColor: cores.cartao, borderWidth: 1, borderColor: cores.bordaForte },
   apagado: { opacity: 0.45 },
+  apagar: { height: 44, alignItems: 'center', justifyContent: 'center', marginTop: -4 },
+  apagarTexto: { fontFamily: fontes.semi, fontSize: 14, color: cores.perigo },
   salvar: { flex: 2 },
   primario: { backgroundColor: cores.milho },
   desabilitado: { backgroundColor: cores.desabilitado },

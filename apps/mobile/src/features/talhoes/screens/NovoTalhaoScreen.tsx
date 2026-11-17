@@ -1,5 +1,5 @@
-import { useRouter } from 'expo-router';
-import { useMemo, useRef, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -15,6 +15,7 @@ import { PainelDesenho } from '../components/PainelDesenho';
 import { LADO_DA_ALCA, useArrastarCanto } from '../hooks/useArrastarCanto';
 import { useCriarTalhao } from '../hooks/useCriarTalhao';
 import { useDesenhoTalhao, type Canto } from '../hooks/useDesenhoTalhao';
+import { useMudarTalhao } from '../hooks/useMudarTalhao';
 import { useTalhoes } from '../hooks/useTalhoes';
 import { limitesDosTalhoes } from '../limites';
 
@@ -34,16 +35,36 @@ function arredores(limites: [number, number, number, number] | null, fator = 1.2
   return [oeste - dLng, sul - dLat, leste + dLng, norte + dLat];
 }
 
+/**
+ * Desenhar um talhão novo ou, com `?id=`, redesenhar um que já existe (só os desenhados no app: os que vêm da John
+ * Deere ou de arquivo são alterados na origem). Na edição o desenho começa pelo contorno atual e a tela oferece apagar.
+ */
 export function NovoTalhaoScreen() {
   const router = useRouter();
   const { top } = useSafeAreaInsets();
+  const { id } = useLocalSearchParams<{ id?: string }>();
   const { talhoes, carregando, erro: erroLista, atualizar } = useTalhoes();
   const desenho = useDesenhoTalhao();
-  const { criar, salvando, salvo, erro: erroSalvar, limparErro } = useCriarTalhao();
+  const { conexao } = useConexaoDeere();
+  const comDeere = conexao?.modo === 'deere' && conexao.estado === 'pronto';
+  const criacao = useCriarTalhao();
+  const mudanca = useMudarTalhao();
+  const { salvando, salvo, erro: erroSalvar, limparErro } = id ? mudanca : criacao;
   const [nome, setNome] = useState('');
   const [tentouSalvar, setTentouSalvar] = useState(false);
   const controle = useRef<MapaControle>(null);
-  const travado = !!salvo || salvando;
+  const travado = !!salvo || salvando || mudanca.apagando;
+  // O talhão que está sendo editado. Depois de apagado ele some da lista: o que a tela precisa já foi carregado.
+  const editado = id ? talhoes.find((t) => t.id === id) : undefined;
+  const [carregado, setCarregado] = useState<{ id: string; naDeere: boolean; limites: [number, number, number, number] | null } | null>(null);
+  useEffect(() => {
+    if (!editado || !editado.doApp || carregado) return;
+    desenho.carregar((editado.contorno.coordinates[0] ?? []) as Canto[]);
+    setNome(editado.nome);
+    setCarregado({ id: editado.id, naDeere: editado.naDeere === true, limites: arredores(limitesDosTalhoes([editado]), 0.6) });
+    // `desenho` muda a cada desenho; o carregamento acontece uma vez, quando o talhão chega.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editado, carregado]);
   const arrasto = useArrastarCanto({
     controle,
     selecionado: travado ? null : desenho.selecionado,
@@ -53,13 +74,14 @@ export function NovoTalhaoScreen() {
   });
   // Talhões que já existem, como referência (montado uma vez por lista).
   const referencia = useMemo<GeoJSON.FeatureCollection<GeoJSON.Polygon>>(
-    () => ({ type: 'FeatureCollection', features: talhoes.map((t) => ({ type: 'Feature', properties: {}, geometry: t.contorno })) }),
-    [talhoes],
+    // O talhão em edição fica de fora: o contorno antigo dele por baixo do desenho só confunde.
+    () => ({ type: 'FeatureCollection', features: talhoes.filter((t) => t.id !== id).map((t) => ({ type: 'Feature', properties: {}, geometry: t.contorno })) }),
+    [talhoes, id],
   );
 
   // Um toque no mapa pode selecionar um canto, mover o canto selecionado ou criar um canto novo.
   const aoTocarMapa = async (lngLat: Canto, ponto: [number, number]) => {
-    if (salvo || salvando) return;
+    if (travado) return;
     const naTela = await Promise.all(desenho.cantos.map((canto) => controle.current?.projetar(canto)));
     let maisPerto = -1;
     let menor = RAIO_TOQUE;
@@ -92,37 +114,85 @@ export function NovoTalhaoScreen() {
   if (carregando) return <View style={styles.espera}><Carregando /></View>;
   if (erroLista) return <View style={styles.espera}><ErroComTentarDeNovo mensagem={erroLista.message} aoTentar={atualizar} /></View>;
 
+  if (id && !carregado) {
+    // Ainda não carregou: ou o talhão não existe mais, ou não é dos desenhados no app.
+    return (
+      <View style={styles.espera}>
+        <ErroComTentarDeNovo mensagem={editado ? 'Este talhão veio da John Deere ou de um arquivo importado. Ele é alterado lá, não pelo aplicativo.' : 'Não encontrei esse talhão. Ele pode ter sido apagado.'} aoTentar={() => router.back()} />
+      </View>
+    );
+  }
+
   // Sem talhões ainda, enquadra a área da fazenda de demonstração.
   const [oeste, norte] = cantosDaImagemDemo()[0];
   const [leste, sul] = cantosDaImagemDemo()[2];
   // Abre perto de um talhão que já existe (com folga em volta), e não com a fazenda inteira:
   // talhões distantes entre si deixariam tudo pequeno demais para desenhar.
-  const limites = arredores(limitesDosTalhoes(talhoes.slice(0, 1))) ?? [oeste, sul, leste, norte];
+  const limites = carregado?.limites ?? arredores(limitesDosTalhoes(talhoes.slice(0, 1))) ?? [oeste, sul, leste, norte];
 
   const nomeVazio = nome.trim() === '';
   const erro = tentouSalvar && nomeVazio ? 'Dê um nome ao talhão' : (erroSalvar?.message ?? null);
-
-  const { conexao } = useConexaoDeere();
-  const comDeere = conexao?.modo === 'deere' && conexao.estado === 'pronto';
 
   const salvar = () => {
     setTentouSalvar(true);
     const contorno = desenho.contorno;
     if (nomeVazio || !contorno) return;
+    const aoSalvar = {
+      onSuccess: (talhao: { envioDeere?: 'enviado' | 'recusado' | 'nao-pedido' }) => {
+        if (talhao.envioDeere !== 'recusado') return;
+        Alert.alert(
+          'Salvo só no Talhio',
+          carregado
+            ? 'As alterações foram salvas, mas a John Deere não aceitou recebê-las. No Operations Center o talhão continua como estava.'
+            : 'O talhão foi salvo, mas a John Deere não aceitou criar lá. Ele vale para o mapa, a escala e os relatórios; a linha e o plano dele não chegam ao monitor do trator.',
+        );
+      },
+    };
     const gravar = (enviarParaDeere: boolean) =>
-      criar(
-        { nome: nome.trim(), contorno, enviarParaDeere },
+      carregado ? mudanca.editar({ id: carregado.id, nome: nome.trim(), contorno, enviarParaDeere }, aoSalvar) : criacao.criar({ nome: nome.trim(), contorno, enviarParaDeere }, aoSalvar);
+    if (!comDeere) return gravar(false);
+    // Criar ou alterar na John Deere é escrever na conta da fazenda: só com o "sim" de quem está salvando.
+    if (carregado?.naDeere) {
+      return Alert.alert('Atualizar também na John Deere?', 'Este talhão existe no Operations Center da fazenda. O nome e o contorno de lá passam a ser estes; o contorno antigo fica guardado lá, inativo.', [
+        { text: 'Só no Talhio', onPress: () => gravar(false) },
+        { text: 'Atualizar na John Deere', onPress: () => gravar(true) },
+      ]);
+    }
+    Alert.alert(carregado ? 'Enviar para a John Deere?' : 'Criar também na John Deere?', 'O talhão é criado no Operations Center da fazenda, para a linha e o plano poderem chegar ao monitor do trator. Ele fica visível para quem usa a conta e só sai de lá arquivando no Operations Center.', [
+      { text: 'Só no Talhio', onPress: () => gravar(false) },
+      { text: carregado ? 'Enviar para a John Deere' : 'Criar na John Deere', onPress: () => gravar(true) },
+    ]);
+  };
+
+  const apagar = () => {
+    if (!carregado) return;
+    const executar = (naDeere: boolean) =>
+      mudanca.apagar(
+        { id: carregado.id, naDeere },
         {
-          onSuccess: (talhao) => {
-            if (talhao.envioDeere === 'recusado') Alert.alert('Salvo só no Talhio', 'O talhão foi salvo, mas a John Deere não aceitou criar lá. Ele vale para o mapa, a escala e os relatórios; a linha e o plano dele não chegam ao monitor do trator.');
+          onSuccess: (resultado) => {
+            router.back();
+            if (resultado.naDeere === 'mantido' || resultado.naDeere === 'recusado') {
+              Alert.alert(
+                resultado.naDeere === 'recusado' ? 'Apagado só do Talhio' : 'Talhão apagado',
+                `${resultado.naDeere === 'recusado' ? 'A John Deere não aceitou arquivar a cópia dela. ' : ''}A cópia continua no Operations Center e volta a aparecer no mapa como talhão da John Deere. Para tirar, arquive o talhão lá.`,
+              );
+            }
           },
+          onError: (falha) => Alert.alert('Não consegui apagar', falha.message),
         },
       );
-    if (!comDeere) return gravar(false);
-    // Criar na John Deere é escrever na conta da fazenda: só com o "sim" de quem está salvando.
-    Alert.alert('Criar também na John Deere?', 'O talhão é criado no Operations Center da fazenda, para a linha e o plano poderem chegar ao monitor do trator. Ele fica visível para quem usa a conta e só sai de lá arquivando no Operations Center.', [
-      { text: 'Só no Talhio', onPress: () => gravar(false) },
-      { text: 'Criar na John Deere', onPress: () => gravar(true) },
+    const aviso = `O talhão "${nome.trim() || editado?.nome || ''}" e as linhas AB dele saem do Talhio. Não dá para desfazer.`;
+    if (carregado.naDeere && comDeere) {
+      return Alert.alert('Apagar este talhão?', `${aviso}\n\nEle também existe na John Deere. Lá o Talhio não apaga: arquiva, e dá para desarquivar no Operations Center.`, [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Apagar só do Talhio', style: 'destructive', onPress: () => executar(false) },
+        { text: 'Apagar e arquivar na John Deere', style: 'destructive', onPress: () => executar(true) },
+      ]);
+    }
+    Alert.alert('Apagar este talhão?', aviso, [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Apagar', style: 'destructive', onPress: () => executar(false) },
     ]);
   };
 
@@ -148,7 +218,7 @@ export function NovoTalhaoScreen() {
               <Icone nome="voltar" cor={cores.texto} tamanho={20} espessura={2} />
             </Pressable>
             <View style={styles.tituloPill}>
-              <Text style={styles.titulo}>Novo talhão</Text>
+              <Text style={styles.titulo}>{carregado ? 'Editar talhão' : 'Novo talhão'}</Text>
             </View>
           </View>
           {salvo ? null : (
@@ -176,7 +246,14 @@ export function NovoTalhaoScreen() {
         }}
         erro={erro}
         salvando={salvando}
-        confirmacao={salvo ? `Talhão salvo: ${salvo.nome} · ${hectares(salvo.areaHa)}. Já aparece no mapa e pode receber planos.` : null}
+        confirmacao={
+          !salvo
+            ? null
+            : carregado
+              ? `Alterações salvas: ${salvo.nome} · ${hectares(salvo.areaHa)}.${salvo.envioDeere === 'enviado' ? ' A John Deere recebeu o talhão como ficou.' : ''}`
+              : `Talhão salvo: ${salvo.nome} · ${hectares(salvo.areaHa)}. Já aparece no mapa e pode receber planos.`
+        }
+        edicao={carregado ? { aoApagar: apagar, apagando: mudanca.apagando } : undefined}
         cantoSelecionado={desenho.selecionado !== null}
         aoRemover={desenho.remover}
         aoLimpar={() => {

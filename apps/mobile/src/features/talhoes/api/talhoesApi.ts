@@ -1,4 +1,4 @@
-import { ListaTalhoesSchema, TalhaoSchema, type NovoTalhao, type Talhao } from '@talhio/shared';
+import { ListaTalhoesSchema, TalhaoApagadoSchema, TalhaoSchema, type EditarTalhao, type NovoTalhao, type Talhao, type TalhaoApagado } from '@talhio/shared';
 
 import { apiClient } from '@/shared/lib/apiClient';
 
@@ -14,4 +14,7 @@ export const talhoesApi = {
     });
   },
   criar: async (dados: NovoTalhao): Promise<Talhao> => TalhaoSchema.parse(await apiClient.post('/talhoes', dados)),
+  editar: async ({ id, ...dados }: EditarTalhao & { id: string }): Promise<Talhao> => TalhaoSchema.parse(await apiClient.put(`/talhoes/${encodeURIComponent(id)}`, dados)),
+  apagar: async ({ id, naDeere }: { id: string; naDeere: boolean }): Promise<TalhaoApagado> =>
+    TalhaoApagadoSchema.parse(await apiClient.apagar(`/talhoes/${encodeURIComponent(id)}${naDeere ? '?naDeere=1' : ''}`)),
 };

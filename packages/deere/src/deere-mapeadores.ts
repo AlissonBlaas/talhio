@@ -226,8 +226,8 @@ export function medicoesDe(horas: HorasDoMotorDeere[], rastro?: PontoDeere): Med
 const ponto = ([lng, lat]: [number, number]) => ({ '@type': 'Point', lat, lon: lng });
 
 /** Corpo do POST /organizations/{org}/fields. Cliente e fazenda são criados pelo nome se ainda não existirem. */
-export function campoParaEnviar(nome: string, cliente: string) {
-  return { name: nome, archived: false, farms: { farms: [{ name: cliente }] }, clients: { clients: [{ name: cliente }] } };
+export function campoParaEnviar(nome: string, cliente: string, arquivado = false) {
+  return { name: nome, archived: arquivado, farms: { farms: [{ name: cliente }] }, clients: { clients: [{ name: cliente }] } };
 }
 
 /** Corpo do POST .../fields/{id}/boundaries. O anel é fechado (primeiro ponto = último). `active` torna este o contorno do talhão. */

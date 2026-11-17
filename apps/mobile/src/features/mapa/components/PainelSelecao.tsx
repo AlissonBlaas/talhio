@@ -23,10 +23,12 @@ type Props = {
   aoVerMaquina: (maquinaId: string) => void;
   aoPlanejar: (talhaoId: string) => void;
   aoLinhaAb: (talhaoId: string) => void;
+  /** Editar ou apagar o talhão: só aparece nos desenhados no app. */
+  aoEditarTalhao: (talhaoId: string) => void;
 };
 
 /** Painel inferior do mapa: legenda quando nada está selecionado, detalhes quando há seleção. */
-export function PainelSelecao({ selecao, aoFechar, aoVerMaquina, aoPlanejar, aoLinhaAb }: Props) {
+export function PainelSelecao({ selecao, aoFechar, aoVerMaquina, aoPlanejar, aoLinhaAb, aoEditarTalhao }: Props) {
   const { bottom } = useSafeAreaInsets();
   return (
     <View style={[styles.painel, { paddingBottom: Math.max(bottom, 22) + 8 }]}>
@@ -120,6 +122,11 @@ export function PainelSelecao({ selecao, aoFechar, aoVerMaquina, aoPlanejar, aoL
               <Text style={styles.botaoTexto}>Planejar e enviar</Text>
             </Pressable>
           </View>
+          {selecao.talhao.doApp ? (
+            <Pressable accessibilityRole="button" onPress={() => aoEditarTalhao(selecao.talhao.id)} style={styles.editar}>
+              <Text style={styles.editarTexto}>Editar ou apagar este talhão</Text>
+            </Pressable>
+          ) : null}
         </View>
       )}
     </View>
@@ -232,6 +239,8 @@ const styles = StyleSheet.create({
   aviso: { color: cores.aviso },
   linhaInfo: { fontFamily: fontes.regular, fontSize: 12, lineHeight: 15, color: cores.textoSuave },
   botoes: { flexDirection: 'row', gap: 8 },
+  editar: { height: 44, alignItems: 'center', justifyContent: 'center', marginTop: -6, marginBottom: -8 },
+  editarTexto: { fontFamily: fontes.semi, fontSize: 14, color: cores.textoMedio, textDecorationLine: 'underline' },
   botaoSecundario: { flex: 1, backgroundColor: cores.cartao, borderWidth: 1, borderColor: cores.bordaForte },
   botaoLargo: { flex: 2 },
   botaoTexto: { fontFamily: fontes.rotulo, fontSize: 16, color: cores.sobreMilho },

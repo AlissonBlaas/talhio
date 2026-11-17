@@ -142,6 +142,7 @@ export function MapaScreen() {
 
       <PainelSelecao selecao={mapa.selecao} aoFechar={mapa.limparSelecao} aoVerMaquina={(id) => router.navigate({ pathname: '/maquina/[id]', params: { id } })} aoPlanejar={(talhaoId) => router.navigate({ pathname: '/planejar', params: { talhaoId } })}
         aoLinhaAb={(talhaoId) => router.navigate({ pathname: '/linha-ab', params: { talhaoId } })}
+        aoEditarTalhao={(talhaoId) => router.navigate({ pathname: '/novo-talhao', params: { id: talhaoId } })}
       />
     </View>
   );

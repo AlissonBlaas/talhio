@@ -20,6 +20,10 @@ export const TalhaoSchema = z.object({
    * Nos três casos o talhão está salvo no Talhio.
    */
   envioDeere: z.enum(['enviado', 'recusado', 'nao-pedido']).optional(),
+  /** Talhão desenhado no Talhio: só esses podem ser editados e apagados pelo aplicativo. Ausente = veio da John Deere ou de arquivo. */
+  doApp: z.boolean().optional(),
+  /** Talhão do aplicativo que tem cópia no Operations Center da fazenda. */
+  naDeere: z.boolean().optional(),
 });
 export type Talhao = z.infer<typeof TalhaoSchema>;
 
@@ -37,3 +41,27 @@ export const NovoTalhaoSchema = z.object({
   enviarParaDeere: z.boolean().default(false),
 });
 export type NovoTalhao = z.input<typeof NovoTalhaoSchema>;
+
+/**
+ * Mudança num talhão desenhado no app. Só vai o que mudou; a área é recalculada pelo backend quando o contorno muda.
+ * `enviarParaDeere` manda o talhão como ficou para o Operations Center (cria lá se ainda não existe; se existe,
+ * troca o contorno e o nome). É escrita na conta do cliente: só com o "sim" de quem está salvando.
+ */
+export const EditarTalhaoSchema = z.object({
+  nome: NovoTalhaoSchema.shape.nome.optional(),
+  cultura: z.string().trim().min(1).max(40).nullable().optional(),
+  contorno: NovoTalhaoSchema.shape.contorno.optional(),
+  enviarParaDeere: z.boolean().default(false),
+});
+export type EditarTalhao = z.input<typeof EditarTalhaoSchema>;
+
+/** `?naDeere=1` ao apagar: arquiva também a cópia do talhão no Operations Center. */
+export const PedidoDeApagarTalhaoSchema = z.object({ naDeere: z.enum(['0', '1']).default('0') });
+
+/**
+ * O que aconteceu com a cópia na John Deere quando o talhão foi apagado do Talhio: `arquivado` (some de lá e do
+ * mapa; dá para desarquivar no Operations Center), `recusado` (a John Deere não aceitou: a cópia continua lá e volta
+ * a aparecer no mapa como talhão dela), `mantido` (ninguém pediu para arquivar: idem) ou `nao-tinha`.
+ */
+export const TalhaoApagadoSchema = z.object({ naDeere: z.enum(['arquivado', 'recusado', 'mantido', 'nao-tinha']) });
+export type TalhaoApagado = z.infer<typeof TalhaoApagadoSchema>;

@@ -93,6 +93,16 @@ export class ProvedorPorFazenda implements ProvedorMaquinas {
     if (!p.enviarTalhao) throw new Error('esta fonte de dados não cria talhões');
     return p.enviarTalhao(orgId, talhao);
   }
+  async atualizarTalhao(orgId: string, deereId: string, talhao: { nome: string; contorno: [number, number][] }) {
+    const p = this.de(orgId);
+    if (!p.atualizarTalhao) throw new Error('esta fonte de dados não altera talhões');
+    return p.atualizarTalhao(orgId, deereId, talhao);
+  }
+  async arquivarTalhao(orgId: string, deereId: string) {
+    const p = this.de(orgId);
+    if (!p.arquivarTalhao) throw new Error('esta fonte de dados não arquiva talhões');
+    return p.arquivarTalhao(orgId, deereId);
+  }
   async sincronizar(orgId: string) {
     const p = this.de(orgId);
     return p.sincronizar ? p.sincronizar(orgId) : { lidas: 0, esperando: 0, falhas: 0 };

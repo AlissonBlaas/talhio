@@ -707,10 +707,44 @@ export class DeereProvedor implements ProvedorMaquinas {
     const id = await this.cliente.criar(orgId, `/organizations/${org}/fields`, campoParaEnviar(talhao.nome, cliente));
     if (!id) throw new Error(`A John Deere não devolveu o id do talhão ${talhao.nome}.`);
     await this.cliente.criar(orgId, `/organizations/${org}/fields/${encodeURIComponent(id)}/boundaries`, contornoParaEnviar(talhao.nome, talhao.contorno));
-    // Os talhões mudaram: a próxima leitura busca de novo na Deere em vez de devolver a lista guardada.
+    this.talhoesMudaram(orgId);
+    return id;
+  }
+
+  /** Depois de escrever num talhão da conta: a próxima leitura busca de novo na Deere em vez de devolver a lista guardada. */
+  private talhoesMudaram(orgId: string): void {
     this.guardados.delete(`talhoes/${orgId}`);
     this.ultimos.delete(`talhoes/${orgId}`);
-    return id;
+  }
+
+  /**
+   * Talhão que o Talhio criou na conta, depois de editado no aplicativo: troca o nome (se mudou) e grava o contorno
+   * novo como o ativo. O contorno antigo fica guardado na conta, inativo. ESCREVE na conta da John Deere.
+   * NÃO conferido contra a Deere real (PUT do talhão e segundo contorno ativo).
+   */
+  async atualizarTalhao(orgId: string, deereId: string, talhao: { nome: string; contorno: [number, number][] }): Promise<void> {
+    const org = encodeURIComponent(await this.config.obterOrganizacao(orgId));
+    const campo = `/organizations/${org}/fields/${encodeURIComponent(deereId)}`;
+    const atual = await this.cliente.obter<CampoDeere>(orgId, campo);
+    if ((atual.name ?? '').trim() !== talhao.nome.trim()) {
+      const cliente = await this.nomeDaFazenda(orgId).catch(() => 'Fazenda');
+      await this.cliente.atualizar(orgId, campo, campoParaEnviar(talhao.nome, cliente));
+    }
+    await this.cliente.criar(orgId, `${campo}/boundaries`, contornoParaEnviar(talhao.nome, talhao.contorno));
+    this.talhoesMudaram(orgId);
+  }
+
+  /**
+   * Arquiva na conta um talhão que o Talhio criou lá (o Talhio não tem permissão de apagar na John Deere, e arquivar
+   * tem volta). Talhão arquivado não aparece mais no mapa. NÃO conferido contra a Deere real.
+   */
+  async arquivarTalhao(orgId: string, deereId: string): Promise<void> {
+    const org = encodeURIComponent(await this.config.obterOrganizacao(orgId));
+    const campo = `/organizations/${org}/fields/${encodeURIComponent(deereId)}`;
+    const atual = await this.cliente.obter<CampoDeere>(orgId, campo);
+    const cliente = await this.nomeDaFazenda(orgId).catch(() => 'Fazenda');
+    await this.cliente.atualizar(orgId, campo, campoParaEnviar(atual.name?.trim() || `Talhão ${deereId}`, cliente, true));
+    this.talhoesMudaram(orgId);
   }
 
   /**

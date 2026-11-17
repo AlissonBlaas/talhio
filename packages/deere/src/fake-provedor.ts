@@ -233,6 +233,26 @@ export class FakeProvedor implements ProvedorMaquinas {
     return id;
   }
 
+  /** O que foi mandado de novo para um talhão já criado na conta, para os testes conferirem. */
+  readonly talhoesAtualizados: { id: string; nome: string; cantos: number }[] = [];
+
+  async atualizarTalhao(_orgId: string, deereId: string, talhao: { nome: string; contorno: [number, number][] }): Promise<void> {
+    const ja = this.talhoesEnviados.find((t) => t.id === deereId);
+    if (!ja) throw new Error(`talhão ${deereId} não existe na conta`);
+    ja.nome = talhao.nome;
+    this.talhoesAtualizados.push({ id: deereId, nome: talhao.nome, cantos: talhao.contorno.length });
+  }
+
+  /** Talhões arquivados na conta. */
+  readonly talhoesArquivados: string[] = [];
+
+  async arquivarTalhao(_orgId: string, deereId: string): Promise<void> {
+    const i = this.talhoesEnviados.findIndex((t) => t.id === deereId);
+    if (i < 0) throw new Error(`talhão ${deereId} não existe na conta`);
+    this.talhoesEnviados.splice(i, 1);
+    this.talhoesArquivados.push(deereId);
+  }
+
   async importarFazenda(_orgId: string, fazenda: FazendaImportada): Promise<void> {
     // Substitui a fazenda atual (a de demonstração ou a importada antes).
     this.fazenda = fazenda;

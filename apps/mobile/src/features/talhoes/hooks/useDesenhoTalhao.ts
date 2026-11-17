@@ -46,6 +46,14 @@ export function useDesenhoTalhao() {
     /** O meio de cada lado, na ordem dos cantos: `meios[i]` fica entre o canto `i` e o seguinte. */
     meios,
     adicionar: (canto: Canto) => setCantos((atuais) => [...atuais, canto]),
+    /** Começa de um contorno que já existe (editar um talhão). O ponto que fecha o anel, igual ao primeiro, fica de fora. */
+    carregar: (anel: Canto[]) => {
+      const primeiro = anel[0];
+      const ultimo = anel[anel.length - 1];
+      const fechado = anel.length > 1 && primeiro && ultimo && primeiro[0] === ultimo[0] && primeiro[1] === ultimo[1];
+      setCantos(fechado ? anel.slice(0, -1) : anel);
+      setSelecionado(null);
+    },
     /**
      * Cria um canto no meio do lado que começa no canto `depoisDe` e já o deixa selecionado: o próximo toque no mapa
      * leva o canto novo para o lugar certo. É assim que se acompanha uma curva sem redesenhar o talhão.

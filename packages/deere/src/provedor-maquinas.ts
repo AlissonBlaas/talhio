@@ -53,6 +53,16 @@ export interface ProvedorMaquinas {
    */
   enviarTalhao?(orgId: string, talhao: { nome: string; contorno: [number, number][] }): Promise<string>;
   /**
+   * Leva para um talhão que o Talhio criou na conta (`deereId`) o nome e o contorno como ficaram depois de editado:
+   * o contorno novo passa a ser o ativo. ESCREVE na conta do cliente: só a pedido explícito de quem salva.
+   */
+  atualizarTalhao?(orgId: string, deereId: string, talhao: { nome: string; contorno: [number, number][] }): Promise<void>;
+  /**
+   * Arquiva na conta um talhão que o Talhio criou lá. Não apaga: dá para desarquivar no Operations Center.
+   * ESCREVE na conta do cliente: só a pedido explícito, e nunca num talhão que não foi o Talhio que criou.
+   */
+  arquivarTalhao?(orgId: string, deereId: string): Promise<void>;
+  /**
    * Recebe talhões e linhas lidos de arquivo (ver `lerArquivosGen4`).
    * No provedor real: cria talhões, contornos e linhas de guia no Operations Center.
    */
