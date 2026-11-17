@@ -10,6 +10,8 @@ import { ExpoPushService } from './expo-push.service.js';
 import { MotorDeAlertasService } from './motor-de-alertas.service.js';
 import { NotificacoesRepository } from './notificacoes.repository.js';
 import { NotificacoesService } from './notificacoes.service.js';
+import { TradutorDeFalhas } from './tradutor-de-falhas.service.js';
+import type { ModeloIa } from '../assistente/modelo-ia.js';
 
 const TOKEN_A = 'ExponentPushToken[aaaaaaaaaaaaaaaaaaaaaa]';
 const TOKEN_B = 'ExponentPushToken[bbbbbbbbbbbbbbbbbbbbbb]';
@@ -278,6 +280,89 @@ describe('MotorDeAlertasService', () => {
     (motor as unknown as { provedor: { alertasDaMaquina: () => Promise<never> } }).provedor = { alertasDaMaquina: async () => Promise.reject(new Error('403')) };
     await motor.verificarFalhas('org-demo', [maquina({ status: 'trabalhando' })], em(0));
     expect(enviados).toHaveLength(0);
+  });
+});
+
+describe('tradução das falhas da máquina', () => {
+  const MIN = 60_000;
+  const t0 = new Date('2026-11-13T15:00:00Z').getTime();
+  const INGLES = 'Engine coolant temperature signal out of range high. Stop the machine. ECU 110.03';
+  const PORTUGUES = 'Sinal da temperatura do líquido de arrefecimento do motor acima da faixa. Pare a máquina. ECU 110.03';
+
+  async function montar(respostas: Record<string, string | Error>) {
+    const db: Banco = await montarBanco();
+    const pedidos: string[] = [];
+    const ia = {
+      responder: async (_instrucoes: string, conversa: { texto: string }[]) => {
+        const texto = conversa[0]!.texto;
+        pedidos.push(texto);
+        const r = respostas[texto];
+        if (r instanceof Error) throw r;
+        if (r === undefined) throw new Error('sem resposta combinada');
+        return r;
+      },
+    } as unknown as ModeloIa;
+    const tradutor = new TradutorDeFalhas(db, ia);
+    const dispositivos = new DispositivosRepository(db);
+    await dispositivos.registrar('u1', 'org-demo', TOKEN_A, 'ios');
+    const enviados: { titulo: string; texto: string }[] = [];
+    const push = { enviar: async (_t: string[], m: { titulo: string; texto: string }) => (enviados.push(m), { invalidos: [] }) } as unknown as ExpoPushService;
+    const repo = new NotificacoesRepository(db);
+    const alertas: AlertaDaMaquina[] = [];
+    const provedor = { alertasDaMaquina: async () => alertas } as unknown as ProvedorMaquinas;
+    const motor = new MotorDeAlertasService({ deereProvedor: 'deere', pushAlertas: true } as unknown as Config, provedor, {} as never, {} as never, repo, new NotificacoesService(repo, dispositivos, push), tradutor);
+    const maquina = { id: '7', nome: '8270R - 29', telemetriaAtiva: true } as unknown as Maquina;
+    const falha = (id: string, descricao: string): AlertaDaMaquina => ({ id, quando: new Date(t0 - 30 * MIN).toISOString(), severidade: 'alta', descricao, reconhecido: false, ocorrencias: 1 });
+    return { tradutor, pedidos, motor, repo, enviados, alertas, maquina, falha, agora: new Date(t0) };
+  }
+
+  it('o aviso da falha sai em português, e o mesmo texto só é traduzido uma vez', async () => {
+    const { motor, enviados, alertas, maquina, falha, pedidos, agora, repo } = await montar({ [INGLES]: PORTUGUES });
+    alertas.push(falha('1', INGLES), falha('2', INGLES));
+    await motor.verificarFalhas('org-demo', [maquina], agora);
+    expect(enviados.map((e) => e.texto)).toEqual([PORTUGUES, PORTUGUES]);
+    expect(enviados[0]!.titulo).toBe('Falha grave: 8270R - 29');
+    expect(pedidos).toEqual([INGLES]);
+    // Na aba fica a tradução; o texto da John Deere fica guardado, e não espera mais tradução.
+    expect((await repo.listar('org-demo', 5)).map((n) => n.texto)).toEqual([PORTUGUES, PORTUGUES]);
+    expect(await repo.falhasSemTraducao('org-demo', new Date(0), 10)).toEqual([]);
+  });
+
+  it('IA fora do ar não segura o aviso: sai o texto original, e não insiste na mesma rodada', async () => {
+    const { motor, enviados, alertas, maquina, falha, pedidos, agora } = await montar({ [INGLES]: new Error('fora do ar') });
+    alertas.push(falha('1', INGLES), falha('2', INGLES));
+    await motor.verificarFalhas('org-demo', [maquina], agora);
+    expect(enviados.map((e) => e.texto)).toEqual([INGLES, INGLES]);
+    expect(pedidos).toHaveLength(1);
+  });
+
+  it('tradução que muda um número ou vem vazia é recusada', async () => {
+    const { tradutor } = await montar({ [INGLES]: PORTUGUES.replace('110.03', '110.30'), 'Hydraulic oil filter restricted': '   ' });
+    expect(await tradutor.traduzir(INGLES)).toEqual({ texto: INGLES, traduzido: false, definitivo: true });
+    expect(await tradutor.traduzir('Hydraulic oil filter restricted')).toMatchObject({ texto: 'Hydraulic oil filter restricted', traduzido: false });
+  });
+
+  it('número com vírgula decimal na tradução vale, e só código não vai para a IA', async () => {
+    const { tradutor, pedidos } = await montar({ 'Fuel pressure 2.5 bar below target': 'Pressão do combustível 2,5 bar abaixo do alvo' });
+    expect(await tradutor.traduzir('Fuel pressure 2.5 bar below target')).toEqual({ texto: 'Pressão do combustível 2,5 bar abaixo do alvo', traduzido: true });
+    expect(await tradutor.traduzir('AIC 524019.31')).toEqual({ texto: 'AIC 524019.31', traduzido: true });
+    expect(pedidos).toHaveLength(1);
+  });
+
+  it('falhas que já estavam na aba em inglês são traduzidas depois, sem novo push; a recusada não trava as outras', async () => {
+    const { motor, repo, enviados, agora } = await montar({ [INGLES]: PORTUGUES, 'Transmission oil pressure low 12': 'Pressão baixa' });
+    const antiga = (id: string, texto: string, criadaEm: Date) => ({ id, chave: `falha-maquina:7`, tipo: 'falha-maquina' as const, severidade: 'alta' as const, maquinaId: '7', maquinaNome: '8270R - 29', titulo: 'Falha grave: 8270R - 29', texto, criadaEm });
+    await repo.criar('org-demo', antiga('recusada', 'Transmission oil pressure low 12', new Date(t0 - 10 * MIN)));
+    await repo.criar('org-demo', antiga('boa', INGLES, new Date(t0 - 20 * MIN)));
+    await repo.criar('org-demo', antiga('velha', INGLES, new Date(t0 - 40 * 24 * 60 * MIN)));
+    await repo.criar('org-b', antiga('de-outra', INGLES, new Date(t0 - 20 * MIN)));
+    await motor.traduzirAntigas('org-demo', agora);
+    const porId = Object.fromEntries((await repo.listar('org-demo', 10)).map((n) => [n.id, n.texto]));
+    expect(porId).toEqual({ recusada: 'Transmission oil pressure low 12', boa: PORTUGUES, velha: INGLES });
+    expect((await repo.listar('org-b', 10))[0]!.texto).toBe(INGLES);
+    expect(enviados).toHaveLength(0);
+    // Segunda rodada: nada mais a fazer nas recentes (a recusada ficou marcada).
+    expect(await repo.falhasSemTraducao('org-demo', new Date(t0 - 30 * 24 * 60 * MIN), 10)).toEqual([]);
   });
 });
 

@@ -5,7 +5,7 @@ import type { Banco } from '../banco/banco.js';
 import { BANCO } from '../banco/banco.module.js';
 import { notificacoes, notificacoesLidas } from '../banco/schema.js';
 
-export type NovaNotificacao = Omit<Notificacao, 'resolvidaEm' | 'criadaEm'> & { chave: string; criadaEm?: Date };
+export type NovaNotificacao = Omit<Notificacao, 'resolvidaEm' | 'criadaEm'> & { chave: string; criadaEm?: Date; /** O texto em inglês, quando `texto` já é a tradução. */ textoOriginal?: string | null };
 
 const paraContrato = (l: typeof notificacoes.$inferSelect): Notificacao => ({
   id: l.id,
@@ -42,10 +42,25 @@ export class NotificacoesRepository {
   async criar(orgId: string, n: NovaNotificacao): Promise<boolean> {
     const r = await this.db
       .insert(notificacoes)
-      .values({ id: n.id, orgId, chave: n.chave, tipo: n.tipo, severidade: n.severidade, maquinaId: n.maquinaId, maquinaNome: n.maquinaNome, titulo: n.titulo, texto: n.texto, criadaEm: n.criadaEm ?? new Date() })
+      .values({ id: n.id, orgId, chave: n.chave, tipo: n.tipo, severidade: n.severidade, maquinaId: n.maquinaId, maquinaNome: n.maquinaNome, titulo: n.titulo, texto: n.texto, textoOriginal: n.textoOriginal ?? null, criadaEm: n.criadaEm ?? new Date() })
       .onConflictDoNothing()
       .returning({ id: notificacoes.id });
     return r.length > 0;
+  }
+
+  /** Falhas de máquina recentes que ainda estão com o texto que a John Deere mandou (em inglês), das mais novas para as antigas. */
+  async falhasSemTraducao(orgId: string, desde: Date, limite: number): Promise<{ id: string; texto: string }[]> {
+    return this.db
+      .select({ id: notificacoes.id, texto: notificacoes.texto })
+      .from(notificacoes)
+      .where(and(eq(notificacoes.orgId, orgId), eq(notificacoes.tipo, 'falha-maquina'), isNull(notificacoes.textoOriginal), gt(notificacoes.criadaEm, desde)))
+      .orderBy(desc(notificacoes.criadaEm))
+      .limit(limite);
+  }
+
+  /** Troca o texto de uma falha pela tradução e guarda o original. */
+  async gravarTraducao(orgId: string, id: string, traducao: string, original: string): Promise<void> {
+    await this.db.update(notificacoes).set({ texto: traducao, textoOriginal: original }).where(and(eq(notificacoes.orgId, orgId), eq(notificacoes.id, id)));
   }
 
   async resolver(orgId: string, id: string, quando: Date = new Date()): Promise<void> {

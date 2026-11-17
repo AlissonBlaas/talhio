@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, type OnApplicationBootstrap, type OnApplicationShutdown } from '@nestjs/common';
+import { Inject, Injectable, Logger, Optional, type OnApplicationBootstrap, type OnApplicationShutdown } from '@nestjs/common';
 import type { ProvedorMaquinas } from '@talhio/deere';
 import type { Maquina, Severidade } from '@talhio/shared';
 import { CONFIG, type Config } from '../core/config.js';
@@ -7,6 +7,7 @@ import { PROVEDOR_MAQUINAS } from '../integracoes/deere/deere.tokens.js';
 import { MaquinasService } from '../maquinas/maquinas.service.js';
 import { NotificacoesRepository } from './notificacoes.repository.js';
 import { NotificacoesService } from './notificacoes.service.js';
+import { TradutorDeFalhas } from './tradutor-de-falhas.service.js';
 
 const MIN = 60_000;
 const INTERVALO_MS = 2 * MIN;
@@ -26,6 +27,10 @@ const INTERVALO_ENTRE_AVISOS_MS = 2 * 60 * MIN;
 /** Falha registrada há mais que isso não vira aviso (evita despejar o passado ao ligar). */
 const JANELA_DAS_FALHAS_MS = 6 * 60 * MIN;
 const PAUSA_ENTRE_MAQUINAS_MS = 400;
+/** Falhas já gravadas em inglês (de antes da tradução existir): quantas se traduzem por rodada e até que idade. */
+const ANTIGAS_POR_RODADA = 10;
+const ANTIGAS_ATE_MS = 30 * 24 * 60 * MIN;
+const curto = (texto: string) => (texto.length > 180 ? `${texto.slice(0, 177)}…` : texto);
 
 const hora = (data: Date) => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false }).format(data);
 const esperar = (ms: number) => new Promise<void>((ok) => setTimeout(ok, ms));
@@ -54,6 +59,7 @@ export class MotorDeAlertasService implements OnApplicationBootstrap, OnApplicat
     @Inject(AtividadeDeereRepository) private readonly fazendas: AtividadeDeereRepository,
     @Inject(NotificacoesRepository) private readonly notificacoes: NotificacoesRepository,
     @Inject(NotificacoesService) private readonly servico: NotificacoesService,
+    @Optional() @Inject(TradutorDeFalhas) private readonly tradutor?: TradutorDeFalhas,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -81,7 +87,10 @@ export class MotorDeAlertasService implements OnApplicationBootstrap, OnApplicat
         try {
           const lista = await this.maquinas.listar(orgId, agora);
           await this.verificarMaquinas(orgId, lista, agora);
-          if (consultaFalhas) await this.verificarFalhas(orgId, lista, agora);
+          if (consultaFalhas) {
+            await this.verificarFalhas(orgId, lista, agora);
+            await this.traduzirAntigas(orgId, agora);
+          }
         } catch (e) {
           this.log.warn(`Fazenda ${orgId}: ${e instanceof Error ? e.message : String(e)}`);
         }
@@ -175,6 +184,8 @@ export class MotorDeAlertasService implements OnApplicationBootstrap, OnApplicat
           const id = `falha-maquina:${m.id}:${a.id}`;
           if (this.falhasJaAvisadas.has(id)) continue;
           this.falhasJaAvisadas.add(id);
+          // A John Deere manda a descrição da falha em inglês: o aviso sai em português. Sem tradução, sai o original.
+          const { texto, traduzido } = this.tradutor ? await this.tradutor.traduzir(a.descricao) : { texto: a.descricao, traduzido: false };
           await this.servico.emitir(orgId, {
             id,
             chave: `falha-maquina:${m.id}`,
@@ -183,7 +194,8 @@ export class MotorDeAlertasService implements OnApplicationBootstrap, OnApplicat
             maquinaId: m.id,
             maquinaNome: m.nome,
             titulo: a.severidade === 'alta' ? `Falha grave: ${m.nome}` : `Falha na ${m.nome}`,
-            texto: a.descricao.length > 180 ? `${a.descricao.slice(0, 177)}…` : a.descricao,
+            texto: curto(texto),
+            textoOriginal: traduzido ? curto(a.descricao) : null,
             criadaEm: new Date(a.quando),
           });
         }
@@ -195,6 +207,22 @@ export class MotorDeAlertasService implements OnApplicationBootstrap, OnApplicat
         }
       }
       await esperar(PAUSA_ENTRE_MAQUINAS_MS);
+    }
+  }
+
+  /**
+   * Falhas que já estavam na aba em inglês (gravadas antes de a tradução existir, ou num momento em que a IA não
+   * respondeu): algumas por rodada, das mais novas para as antigas, até 30 dias. Só o texto da aba muda; não há novo push.
+   */
+  async traduzirAntigas(orgId: string, agora: Date): Promise<void> {
+    if (!this.tradutor) return;
+    const antigas = await this.notificacoes.falhasSemTraducao(orgId, new Date(agora.getTime() - ANTIGAS_ATE_MS), ANTIGAS_POR_RODADA);
+    for (const n of antigas) {
+      const { texto, traduzido, definitivo } = await this.tradutor.traduzir(n.texto);
+      // Sem tradução agora (IA fora do ar): fica como está e a próxima rodada tenta de novo.
+      if (!traduzido && !definitivo) return;
+      // Tradução recusada de vez: fica o original, marcado como visto para não travar a fila das outras.
+      await this.notificacoes.gravarTraducao(orgId, n.id, traduzido ? curto(texto) : n.texto, n.texto);
     }
   }
 }

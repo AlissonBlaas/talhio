@@ -372,6 +372,11 @@ export const notificacoes = pgTable(
     maquinaNome: text('maquina_nome'),
     titulo: text('titulo').notNull(),
     texto: text('texto').notNull(),
+    /**
+     * Falha da máquina: o texto como a John Deere mandou (em inglês), guardado quando `texto` já é a tradução.
+     * Nulo = ainda não traduzido (ou não é falha de máquina).
+     */
+    textoOriginal: text('texto_original'),
     criadaEm: timestamp('criada_em', { withTimezone: true }).notNull().defaultNow(),
     resolvidaEm: timestamp('resolvida_em', { withTimezone: true }),
   },
@@ -384,4 +389,17 @@ export const notificacoesLidas = pgTable('notificacoes_lidas', {
   lidoAte: timestamp('lido_ate', { withTimezone: true }).notNull().defaultNow(),
   /** Até quando o usuário LIMPOU a aba: o que veio antes não aparece mais para ele (continua para os outros). */
   limpoAte: timestamp('limpo_ate', { withTimezone: true }),
+});
+
+/**
+ * Dicionário das falhas das máquinas: o texto que a John Deere manda em inglês e a tradução, uma linha por texto.
+ * Não tem `org_id` de propósito: é o texto genérico do código de diagnóstico, igual para qualquer fazenda, e nada
+ * aqui identifica máquina, pessoa ou lugar.
+ */
+export const traducoes = pgTable('traducoes', {
+  /** SHA-256 do original em minúsculas. */
+  chave: text('chave').primaryKey(),
+  original: text('original').notNull(),
+  traducao: text('traducao').notNull(),
+  criadaEm: timestamp('criada_em', { withTimezone: true }).notNull().defaultNow(),
 });
