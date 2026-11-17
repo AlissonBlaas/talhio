@@ -23,9 +23,10 @@ export function Icone({ nome, tamanho = 22 }: { nome: NomeDoIcone; tamanho?: num
   );
 }
 
-/** Símbolo oficial: quatro passadas curvas, três feitas (cheias) e uma por fazer (tracejada). `sobre` diz a cor do fundo onde ele vai. */
-export function Marca({ tamanho = 28, sobre = "claro" }: { tamanho?: number; sobre?: "claro" | "escuro" }) {
-  const base = sobre === "claro" ? "#15321F" : "#FFFFFF";
+/** Símbolo oficial: quatro passadas curvas, três feitas (cheias) e uma por fazer (tracejada). `sobre` diz a cor do fundo onde ele vai ("auto": a cor do texto em volta). */
+export function Marca({ tamanho = 28, sobre = "claro" }: { tamanho?: number; sobre?: "claro" | "escuro" | "auto" }) {
+  // "auto" usa a cor do texto em volta (o menu muda de cor quando fica suspenso).
+  const base = sobre === "claro" ? "#15321F" : sobre === "escuro" ? "#FFFFFF" : "currentColor";
   return (
     <svg aria-hidden="true" width={(tamanho * 136) / 111} height={tamanho} viewBox="12 16 136 111" fill="none" strokeLinecap="round">
       <path d="M18 58 Q66 21 142 23" stroke="#E7B31F" strokeWidth="13" />

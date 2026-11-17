@@ -21,6 +21,8 @@
   --corpo: "Nunito Sans", system-ui, sans-serif;
   --raio: 28px;
   --sombra: 0 24px 48px -28px rgba(21, 50, 31, 0.35);
+  --suave: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --borda: clamp(16px, 2.6vw, 44px);
 }
 
 *,
@@ -97,12 +99,8 @@ a {
 }
 
 .largura {
-  width: min(1160px, 100% - 40px);
+  width: min(2000px, 100% - 2 * var(--borda));
   margin-inline: auto;
-}
-
-.estreita {
-  width: min(820px, 100% - 40px);
 }
 
 .legenda {
@@ -132,40 +130,21 @@ a {
   border-color: var(--mata-2);
 }
 
-.botao-contorno {
-  background: transparent;
-  color: var(--mata);
-}
-
-.botao-contorno:hover {
-  background: var(--broto);
-  border-color: var(--mata);
-}
-
-.botao-milho {
-  background: var(--milho);
-  border-color: var(--milho);
-  color: var(--mata);
-}
-
-.botao-milho:hover {
-  background: #f0c23c;
-  border-color: #f0c23c;
-}
-
 .botao-pequeno {
   min-height: 44px;
   padding: 0 20px;
   font-size: 0.95rem;
 }
 
-/* Topo: por cima do vídeo da abertura. */
+/* Menu. No topo da página é o header normal, solto sobre o vídeo, com texto escuro. Depois que a pessoa rola e a marca
+ * da abertura sai da tela, o JavaScript põe "menu-visivel" no <html>: o header normal já saiu por cima e desce, no
+ * lugar dele, uma pílula verde suspensa (fixa no topo da tela). */
 .topo {
   position: absolute;
   inset: 0 0 auto;
-  z-index: 20;
+  z-index: 50;
   padding-top: 18px;
-  color: #fff;
+  color: var(--mata);
 }
 
 .topo-linha {
@@ -173,6 +152,34 @@ a {
   align-items: center;
   gap: 24px;
   min-height: 52px;
+}
+
+.menu-visivel .topo {
+  position: fixed;
+  inset: clamp(12px, 2vw, 26px) 0 auto;
+  padding-top: 0;
+  pointer-events: none;
+  color: #fff;
+  animation: desce-menu 0.9s var(--suave) both;
+}
+
+.menu-visivel .topo-linha {
+  width: min(1060px, 100% - 2 * var(--borda));
+  min-height: 64px;
+  margin-inline: auto;
+  padding: 8px 8px 8px 24px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  background: var(--mata);
+  box-shadow: 0 24px 48px -20px rgba(21, 50, 31, 0.55);
+  pointer-events: auto;
+}
+
+@keyframes desce-menu {
+  from {
+    opacity: 0;
+    transform: translateY(-140%);
+  }
 }
 
 .marca {
@@ -201,7 +208,11 @@ a {
 }
 
 .topo nav a:hover {
-  background: rgba(255, 255, 255, 0.16);
+  background: rgba(21, 50, 31, 0.1);
+}
+
+.menu-visivel .topo nav a:hover {
+  background: rgba(255, 255, 255, 0.14);
 }
 
 /* Abertura: os vídeos do campo com a marca no meio. */
@@ -210,7 +221,8 @@ a {
   display: grid;
   min-height: 100vh;
   min-height: 100svh;
-  padding: 96px 0 28px;
+  align-content: center;
+  padding: 96px 0 56px;
   overflow: hidden;
   background: var(--mata);
   color: #fff;
@@ -243,39 +255,20 @@ a {
   object-fit: cover;
 }
 
-/* Escurece o vídeo para a marca ficar legível em qualquer cena. */
+/* Sem véu escuro sobre o vídeo: ele aparece limpo. A legibilidade do texto vem da sombra leve nas letras (abaixo). */
 .fundo-sombra {
-  background:
-    radial-gradient(ellipse 60% 55% at 50% 48%, rgba(21, 50, 31, 0.6), rgba(21, 50, 31, 0) 100%),
-    linear-gradient(180deg, rgba(21, 50, 31, 0.6), rgba(21, 50, 31, 0.3) 35%, rgba(21, 50, 31, 0.62));
+  background: none;
 }
 
-/* A marca fica no terço de cima; a frase, os botões e a seta descem para o pé da tela. */
+
+
+/* A marca e a frase, no centro da tela. */
 .heroi-centro {
-  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 24px;
+  gap: clamp(28px, 5vh, 52px);
   text-align: center;
-}
-
-.heroi-centro h1 {
-  margin-block: auto;
-  padding-bottom: 8vh;
-}
-
-.heroi-seta {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  color: #fff;
-}
-
-.heroi-seta:hover {
-  background: rgba(255, 255, 255, 0.16);
 }
 
 h1 {
@@ -287,6 +280,9 @@ h1 {
 }
 
 .heroi-logo {
+  /* A marca em verde escuro sobre o vídeo claro; sem a sombra das letras, que só deixaria um halo. */
+  color: var(--mata);
+  text-shadow: none;
   display: inline-flex;
   align-items: center;
   gap: clamp(12px, 2vw, 24px);
@@ -300,89 +296,352 @@ h1 {
   height: 0.82em;
 }
 
-/* A assinatura da marca, como no guia: três palavras espaçadas. */
+/* A assinatura da marca: cada palavra desce para o lugar, uma depois da outra, e a passada embaixo vai se preenchendo. */
 .heroi-lema {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: center;
-  gap: 0 1em;
-  font: 600 clamp(0.9rem, 1.6vw, 1.2rem) / 1.4 var(--titulo);
-  letter-spacing: 0.36em;
+  gap: 0 0.7em;
+  color: var(--mata);
+  font: 800 clamp(1.15rem, 3.2vw, 2.6rem) / 1.25 var(--titulo);
+  letter-spacing: 0.02em;
   text-transform: uppercase;
-  text-indent: 0.36em;
+}
+
+.heroi-lema .pal {
+  display: inline-block;
+  overflow: hidden;
+  padding-block: 0.08em;
+}
+
+.heroi-lema b {
+  display: inline-block;
+  font-weight: inherit;
+  animation: queda 1s var(--suave) both;
+  animation-delay: calc(0.5s + var(--i) * 0.42s);
 }
 
 .heroi-lema i {
   font-style: normal;
   color: var(--milho);
+  animation: aparece 0.6s ease both;
+  animation-delay: calc(0.9s + var(--i, 0) * 0.42s);
 }
 
-.heroi-sub {
-  max-width: 36rem;
-  font-size: clamp(1.1rem, 1.8vw, 1.35rem);
-  line-height: 1.45;
-  color: #eef3ea;
+@keyframes queda {
+  from {
+    transform: translateY(-130%);
+  }
+  to {
+    transform: none;
+  }
 }
 
-.heroi-acoes {
+@keyframes aparece {
+  from {
+    opacity: 0;
+  }
+}
+
+/* As três passadas da marca, preenchendo da esquerda para a direita, cada uma quando a palavra chega. */
+.heroi-passada {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 12px;
+  gap: 10px;
+  width: min(560px, 78vw);
 }
 
-.heroi .botao,
+.heroi-passada i {
+  flex: 1;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--milho);
+  transform-origin: left;
+  animation: preenche 0.9s var(--suave) both;
+  animation-delay: calc(1.2s + var(--i) * 0.42s);
+}
+
+.heroi-passada i:nth-child(2) {
+  background: var(--folha);
+}
+
+.heroi-passada i:nth-child(3) {
+  background: var(--mata);
+}
+
+@keyframes preenche {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+.heroi-logo {
+  animation: logo 1.1s var(--suave) both;
+}
+
+@keyframes logo {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.96);
+  }
+}
+
+.heroi .botao {
+  border-color: var(--folha);
+  background: var(--folha);
+  color: #fff;
+}
+
 .topo .botao {
   border-color: var(--folha);
   background: var(--folha);
   color: #fff;
 }
 
-.heroi .botao:hover,
+.menu-visivel .topo .botao {
+  border-color: var(--milho);
+  background: var(--milho);
+  color: var(--mata);
+}
+
+.heroi .botao:hover {
+  border-color: #4a8c35;
+  background: #4a8c35;
+}
+
 .topo .botao:hover {
   border-color: #4a8c35;
   background: #4a8c35;
 }
 
-.heroi .botao-vidro {
-  border-color: #fff;
-  background: rgba(21, 50, 31, 0.25);
+.menu-visivel .topo .botao:hover {
+  border-color: #f0c23c;
+  background: #f0c23c;
 }
 
-.heroi .botao-vidro:hover {
-  border-color: #fff;
-  background: rgba(255, 255, 255, 0.18);
+.botao-grande {
+  min-height: 62px;
+  padding: 0 38px;
+  font-size: 1.2rem;
 }
 
-.ponto {
-  flex: none;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
+.botao-escuro {
+  border-color: var(--mata);
+  background: var(--mata);
+  color: #fff;
 }
 
-.ponto-trabalhando {
-  background: var(--folha);
+.botao-escuro:hover {
+  border-color: var(--mata-2);
+  background: var(--mata-2);
 }
 
-.ponto-parada {
+/* ====================================================================================================
+ * A página: do segundo bloco em diante. Tipografia grande, linhas finas e as passadas da marca como desenho.
+ * Só a abertura (e a troca do menu ao rolar) tem animação; o resto da página fica parado, no lugar.
+ * ================================================================================================== */
+:root {
+  --espaco: clamp(56px, 7vw, 112px);
+}
+
+.gigante,
+.grande,
+.medio {
+  font-weight: 800;
+  letter-spacing: -0.045em;
+}
+
+.gigante {
+  font-size: clamp(2.2rem, 4.6vw, 4.8rem);
+  line-height: 1;
+}
+
+.grande {
+  font-size: clamp(1.9rem, 3.4vw, 3.4rem);
+  line-height: 1.04;
+}
+
+.medio {
+  font-size: clamp(1.6rem, 2.6vw, 2.6rem);
+  line-height: 1.08;
+}
+
+.apoio {
+  max-width: 34rem;
+  margin-top: 16px;
+  color: var(--tinta-suave);
+  font-size: clamp(1rem, 1.2vw, 1.15rem);
+}
+
+/* ---------- Produto: a frase enorme e o aplicativo subindo ---------- */
+.produto {
+  padding-top: var(--espaco);
+  overflow: hidden;
+}
+
+.produto-grade {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  align-items: end;
+  column-gap: 24px;
+  row-gap: 32px;
+}
+
+.produto-titulo {
+  grid-column: 1 / span 9;
+}
+
+.produto-texto {
+  grid-column: 10 / span 3;
+  padding-bottom: 0.9em;
+  color: var(--tinta-suave);
+  font-size: clamp(1.05rem, 1.4vw, 1.25rem);
+}
+
+.produto-cena {
+  position: relative;
+  display: flex;
+  grid-column: 1 / -1;
+  justify-content: center;
+  align-items: flex-start;
+  height: clamp(300px, 36vw, 480px);
+  overflow: hidden;
+}
+
+.produto-arcos {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.produto-cena .celular {
+  position: relative;
+  width: clamp(230px, 21vw, 310px);
+  margin-top: clamp(16px, 2.4vw, 36px);
+}
+
+/* ---------- O que o Talhio faz: faixa verde, frase gigante e a lista ---------- */
+.recursos-faixa {
+  /* Sem vão: o celular e as linhas da seção de cima descem direto até esta faixa. */
+  padding-block: var(--espaco);
+  background: var(--mata);
+  color: #fff;
+}
+
+.recursos-grade {
+  display: grid;
+  grid-template-columns: minmax(0, 6fr) minmax(0, 6fr);
+  align-items: start;
+  gap: clamp(32px, 5vw, 96px);
+}
+
+.recursos-titulo {
+  position: sticky;
+  top: 120px;
+}
+
+.recursos-faixa h2 {
+  color: #fff;
+}
+
+.recursos {
+  display: flex;
+  flex-direction: column;
+}
+
+.recursos li {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  column-gap: 24px;
+  row-gap: 10px;
+  padding: 22px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+}
+
+.recursos li:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* A passada de cada item: a linha da marca; no hover ela estica. */
+.recursos li::before {
+  content: "";
+  grid-row: 1 / span 2;
+  width: 40px;
+  height: 8px;
+  margin-top: 0.7rem;
+  border-radius: 999px;
   background: var(--milho);
+  transition: width 0.5s var(--suave);
 }
 
-.ponto-sem-sinal {
-  background: #9aa79a;
+.recursos li:nth-child(even)::before {
+  background: var(--folha-clara);
 }
 
-/* O relatório, em papel. */
+.recursos li:hover::before {
+  width: 64px;
+}
+
+.recursos h3 {
+  color: #fff;
+  font-size: clamp(1.2rem, 1.7vw, 1.5rem);
+  line-height: 1.15;
+}
+
+.recursos p {
+  grid-column: 2;
+  max-width: 40rem;
+  color: rgba(255, 255, 255, 0.74);
+}
+
+/* ---------- Relatórios ---------- */
+.relatorios {
+  padding-top: var(--espaco);
+}
+
+.relatorios-grade {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  align-items: center;
+  gap: clamp(32px, 5vw, 96px);
+}
+
+.linhas {
+  margin-top: 24px;
+}
+
+.linhas li {
+  padding: 13px 0;
+  border-top: 1px solid var(--giz);
+  font-size: 1.02rem;
+}
+
+.linhas li:last-child {
+  border-bottom: 1px solid var(--giz);
+}
+
+.relatorios-papel {
+  justify-self: end;
+  width: min(100%, 760px);
+}
+
+.legenda {
+  margin-top: 16px;
+  color: var(--tinta-suave);
+  font-size: 0.85rem;
+}
+
 .relatorio {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 22px 24px;
+  gap: 20px;
+  padding: clamp(20px, 2.4vw, 36px);
   border: 1px solid var(--giz);
-  border-radius: var(--raio);
+  border-radius: 8px 36px 36px 36px;
   background: var(--papel);
-  box-shadow: var(--sombra);
+  box-shadow: 0 50px 90px -50px rgba(21, 50, 31, 0.5);
 }
 
 .relatorio figcaption {
@@ -393,71 +652,72 @@ h1 {
 }
 
 .relatorio figcaption strong {
-  font: 700 1.25rem/1 var(--titulo);
+  font: 800 clamp(1.3rem, 2vw, 1.7rem) / 1 var(--titulo);
   color: var(--mata);
 }
 
 .relatorio figcaption span {
   color: var(--tinta-suave);
-  font-size: 0.85rem;
+  font-size: 0.9rem;
 }
 
 .relatorio-numeros {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
+  gap: 20px;
 }
 
 .relatorio-numeros div {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 
 .relatorio-numeros strong {
-  font: 700 clamp(1.6rem, 2.6vw, 2.1rem) / 1 var(--titulo);
-  letter-spacing: -0.03em;
+  font: 800 clamp(1.8rem, 3vw, 3rem) / 0.95 var(--titulo);
+  letter-spacing: -0.05em;
   color: var(--mata);
   white-space: nowrap;
 }
 
 .relatorio-numeros span {
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   font-weight: 600;
 }
 
 .relatorio-numeros small {
   color: var(--folha);
-  font-size: 0.78rem;
+  font-size: 0.82rem;
 }
 
 .relatorio-maquinas {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding-top: 14px;
+  gap: 12px;
+  padding-top: 24px;
   border-top: 1px solid var(--giz);
-  font-size: 0.88rem;
+  font-size: 0.95rem;
 }
 
 .relatorio-maquinas div {
   display: grid;
-  grid-template-columns: 7rem minmax(0, 1fr) 3rem;
+  grid-template-columns: 8.5rem minmax(0, 1fr) 3.4rem;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
 }
 
 .relatorio-maquinas i {
-  height: 8px;
+  height: 12px;
   overflow: hidden;
-  border-radius: 4px;
+  border-radius: 6px;
   background: var(--broto);
 }
 
 .relatorio-maquinas b {
   display: block;
+  width: calc(var(--parte) * 1%);
   height: 100%;
-  border-radius: 4px;
+  border-radius: 6px;
   background: var(--folha);
 }
 
@@ -465,359 +725,89 @@ h1 {
   text-align: right;
 }
 
-/* Seções */
-.secao {
-  padding: 88px 0 0;
-}
-
-.secao-intro {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  max-width: 44rem;
-  margin-bottom: 40px;
-}
-
-.secao-intro p {
+.relatorio-resumo {
+  padding-top: 24px;
+  border-top: 1px solid var(--giz);
   color: var(--tinta-suave);
-  font-size: 1.15rem;
+  font-size: 1.02rem;
 }
 
-.secao-intro.centro {
-  align-items: center;
-  margin-inline: auto;
-  text-align: center;
+/* ---------- Equipe: a escala no WhatsApp e a IA, uma linha cada ---------- */
+.equipe {
+  padding-top: var(--espaco);
 }
 
-/* Rótulo acima do título, como no guia da marca. */
-.sobretitulo {
-  color: var(--folha) !important;
-  font: 600 0.82rem/1.3 var(--titulo) !important;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-}
-
-.duas-colunas {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: center;
-  gap: 64px;
-}
-
-/* Os recursos: o centro da página. */
-.recursos {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 20px;
-}
-
-.recursos li {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 28px;
-  border: 1px solid var(--giz);
-  border-radius: var(--raio);
-  background: var(--papel);
-}
-
-.recursos span {
-  display: grid;
-  place-items: center;
-  width: 52px;
-  height: 52px;
-  margin-bottom: 6px;
-  border-radius: 50%;
-  background: var(--mata);
-  color: var(--milho);
-}
-
-.recursos p {
-  color: var(--tinta-suave);
-}
-
-/* O aplicativo, com as passadas da marca por trás. */
-.vitrine {
-  position: relative;
-  display: grid;
-  place-items: center;
-  padding: 24px 0;
-}
-
-.vitrine-arcos {
-  position: absolute;
-  right: -8%;
-  top: 0;
-  width: 78%;
-  height: auto;
-}
-
-.vitrine .celular {
-  position: relative;
-}
-
-/* Lista do que está feito: a marca de conferido. */
-.lista-feito {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.lista-feito li {
-  display: grid;
-  grid-template-columns: 24px minmax(0, 1fr);
-  align-items: start;
-  gap: 12px;
-  font-size: 1.08rem;
-}
-
-.lista-feito li::before {
-  content: "";
-  width: 24px;
-  height: 24px;
-  margin-top: 2px;
-  border-radius: 50%;
-  background: var(--folha)
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 12.5 3.2 3.2L17 9'/%3E%3C/svg%3E")
-    center / 18px no-repeat;
-}
-
-/* Direto no monitor: a faixa de destaque da página. */
-.faixa {
-  padding: 40px;
-  border-radius: 40px;
-  background: var(--broto);
-}
-
-.faixa-mapa {
-  position: relative;
-  overflow: hidden;
-  border-radius: var(--raio);
-  aspect-ratio: 4 / 3;
-}
-
-.faixa-legenda {
-  position: absolute;
-  right: 16px;
-  bottom: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 190px;
-  padding: 14px 18px;
-  border-radius: 20px;
-  background: var(--papel);
-  box-shadow: var(--sombra);
-  font-size: 0.92rem;
-}
-
-.faixa-legenda span {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.faixa-legenda strong {
-  margin-left: auto;
-  font-family: var(--titulo);
-  color: var(--mata);
-}
-
-.traco {
-  width: 22px;
-  height: 4px;
-  border-radius: 2px;
-}
-
-.traco-feito {
-  background: var(--folha);
-}
-
-.traco-falta {
-  background: repeating-linear-gradient(90deg, var(--milho) 0 5px, transparent 5px 9px);
-}
-
-.para-quem {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 20px;
-}
-
-.para-quem li {
-  display: flex;
-  gap: 16px;
-  padding: 24px;
-  border: 1px solid var(--giz);
-  border-radius: var(--raio);
-  background: var(--papel);
-}
-
-.para-quem span {
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  background: var(--broto);
-  color: var(--folha);
-}
-
-.para-quem div {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.para-quem p {
-  color: var(--tinta-suave);
-  font-size: 0.98rem;
-}
-
-/* O produto: quatro cartões, o do mapa em verde. */
-.quadro {
+.linha-demo {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: 20px;
-}
-
-.cartao {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 28px;
-  min-width: 0;
-  overflow: hidden;
-  padding: 32px;
-  border: 1px solid var(--giz);
-  border-radius: var(--raio);
-  background: var(--papel);
-}
-
-.cartao-texto {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  max-width: 30rem;
-}
-
-.cartao-texto p {
-  color: var(--tinta-suave);
-}
-
-.quadro .cartao {
-  grid-column: span 6;
-}
-
-.cartao-mapa {
-  grid-column: span 7;
-  padding: 0;
-  border-color: var(--mata);
-  background: var(--mata);
-  gap: 0;
-}
-
-.cartao-mapa .cartao-texto {
-  padding: 32px 32px 24px;
-}
-
-.cartao-mapa h3 {
-  color: var(--algodao);
-}
-
-.cartao-mapa p,
-.legenda-mapa {
-  color: #cfdcc9;
-}
-
-.legenda-mapa {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 20px;
-  margin-top: 6px;
-  font-size: 0.9rem;
-}
-
-.legenda-mapa li {
-  display: flex;
   align-items: center;
-  gap: 8px;
+  column-gap: 24px;
+  padding-block: clamp(32px, 4vw, 64px);
+  border-top: 1px solid var(--giz);
 }
 
-.legenda-mapa .ponto {
-  box-shadow: 0 0 0 2px var(--algodao);
+.linha-demo:last-child {
+  border-bottom: 1px solid var(--giz);
 }
 
-.legenda-mapa .ponto-trabalhando {
-  background: #5a9a3f;
+.linha-demo .texto {
+  grid-column: 1 / span 5;
 }
 
-.mapa-fazenda {
-  display: block;
-  width: 100%;
-  height: 100%;
+.linha-demo .demo {
+  grid-column: 7 / span 6;
 }
 
-.cartao-relatorio {
-  grid-column: span 5;
+.linha-demo.inversa .texto {
+  grid-column: 8 / span 5;
+  grid-row: 1;
 }
 
-/* O resumo que o Talhio escreve: a passada de milho ao lado marca que é texto pronto. */
-.resumo {
-  padding: 4px 0 4px 20px;
-  border-left: 4px solid var(--milho);
-  border-radius: 2px;
-  font: 600 1.25rem/1.4 var(--titulo);
-  letter-spacing: -0.01em;
-  color: var(--mata);
-}
-
-.cartao-escala {
-  grid-column: span 5;
+.linha-demo.inversa .demo {
+  grid-column: 1 / span 6;
+  grid-row: 1;
 }
 
 .mensagem {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  padding: 16px 18px 12px;
-  border-radius: 6px 22px 22px 22px;
+  gap: 6px;
+  max-width: 560px;
+  padding: clamp(20px, 2.4vw, 32px);
+  border-radius: 8px 30px 30px 30px;
   background: var(--broto);
-  font-size: 0.95rem;
+  font-size: clamp(1rem, 1.3vw, 1.15rem);
 }
 
 .mensagem strong {
-  margin-bottom: 4px;
-  font: 700 1.05rem/1.2 var(--titulo);
+  margin-bottom: 8px;
+  font: 800 clamp(1.15rem, 1.7vw, 1.45rem) / 1.15 var(--titulo);
   color: var(--mata);
 }
 
 .mensagem small {
   align-self: flex-end;
   color: var(--tinta-suave);
-  font-size: 0.75rem;
-}
-
-.cartao-ia {
-  grid-column: span 7;
+  font-size: 0.8rem;
 }
 
 .chat {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
+  max-width: 620px;
 }
 
 .fala {
-  max-width: 85%;
-  padding: 12px 18px;
-  font-size: 0.98rem;
-  line-height: 1.45;
+  max-width: 88%;
+  padding: 16px 22px;
+  font-size: clamp(1rem, 1.3vw, 1.15rem);
+  line-height: 1.5;
 }
 
 .fala-voce {
   align-self: flex-end;
-  border-radius: 22px 22px 6px 22px;
+  border-radius: 28px 28px 8px 28px;
   background: var(--mata);
   color: var(--algodao);
 }
@@ -825,268 +815,297 @@ h1 {
 .fala-ia {
   align-self: flex-start;
   border: 1px solid var(--giz);
-  border-radius: 22px 22px 22px 6px;
+  border-radius: 28px 28px 28px 8px;
   background: #fff;
 }
 
-.chat-campo {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 52px;
-  margin-top: 6px;
-  padding: 0 6px 0 20px;
-  border: 1px solid var(--giz);
-  border-radius: 999px;
-  background: #fff;
-  color: var(--tinta-suave);
-  font-size: 0.95rem;
-}
-
-.chat-campo b {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: var(--mata);
-  color: var(--algodao);
-}
-
-/* Como funciona: o aplicativo de um lado, os passos do outro. */
-.como {
-  display: grid;
-  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1fr);
-  align-items: center;
-  gap: 64px;
-}
-
-.como-celular {
-  display: grid;
-  place-items: center;
-  padding: 48px 24px;
-  border-radius: 40px;
+/* ---------- Monitor: o mapa grande e o texto ---------- */
+.monitor {
+  margin-top: var(--espaco);
+  padding-block: var(--espaco);
   background: var(--broto);
 }
 
-.passos {
-  display: flex;
-  flex-direction: column;
+.monitor-grade {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  align-items: center;
+  gap: clamp(32px, 5vw, 88px);
 }
 
-.passos li {
+.monitor-mapa {
+  position: relative;
+  aspect-ratio: 679 / 336;
+  overflow: hidden;
+  border-radius: 8px 48px 48px 48px;
+  background: #274a2c;
+  box-shadow: 0 50px 90px -50px rgba(21, 50, 31, 0.6);
+}
+
+.monitor-mapa img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ---------- Para quem: lista grande ---------- */
+.publico {
+  padding-top: var(--espaco);
+}
+
+.publico-grade {
   display: grid;
-  grid-template-columns: 64px minmax(0, 1fr);
-  gap: 24px;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  align-items: start;
+  gap: clamp(32px, 5vw, 96px);
+}
+
+.publico-titulo {
+  position: sticky;
+  top: 120px;
+}
+
+.publico li {
+  padding: 24px 0;
+  border-top: 1px solid var(--giz);
+}
+
+.publico li:last-child {
+  border-bottom: 1px solid var(--giz);
+}
+
+.publico h3 {
+  font-size: clamp(1.6rem, 2.6vw, 2.5rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.045em;
+  transition:
+    color 0.4s ease,
+    transform 0.5s var(--suave);
+}
+
+.publico li:hover h3 {
+  color: var(--folha);
+  transform: translateX(14px);
+}
+
+.publico p {
+  max-width: 34rem;
+  margin-top: 8px;
+  color: var(--tinta-suave);
+  font-size: 1.02rem;
+}
+
+/* ---------- John Deere ---------- */
+.integracao {
+  margin-top: var(--espaco);
+  padding-block: var(--espaco);
+  border-block: 1px solid var(--giz);
+  background: var(--papel);
+}
+
+.integracao-grade {
+  display: grid;
+  grid-template-columns: minmax(0, 6fr) minmax(0, 6fr);
+  align-items: start;
+  gap: clamp(32px, 5vw, 96px);
+}
+
+.etapas li {
+  display: grid;
+  grid-template-columns: 8rem minmax(0, 1fr);
+  gap: 28px;
   padding: 22px 0;
   border-top: 1px solid var(--giz);
 }
 
-.passos li > div {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.etapas li:last-child {
+  border-bottom: 1px solid var(--giz);
 }
 
-.passos p {
+.etapas h3 {
+  font-size: clamp(1.3rem, 2vw, 1.7rem);
+}
+
+.etapas p {
+  margin-top: 8px;
   color: var(--tinta-suave);
 }
 
-.passadas {
-  width: 64px;
-  height: 36px;
-  margin-top: 2px;
-  color: #9aa79a;
-}
-
-/* John Deere */
-.painel {
-  display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1fr);
-  gap: 56px;
-  padding: 56px;
-  border: 1px solid var(--giz);
-  border-radius: 40px;
-  background: var(--papel);
-}
-
-.painel .secao-intro {
-  margin-bottom: 0;
-}
-
-.integracao {
-  display: flex;
-  flex-direction: column;
-}
-
-.integracao li {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  padding: 20px 0;
-  border-top: 1px solid var(--giz);
-}
-
-.integracao li:first-child {
-  padding-top: 0;
-  border-top: 0;
-}
-
-.integracao li:last-child {
-  padding-bottom: 0;
-}
-
-.integracao p {
-  color: var(--tinta-suave);
-}
-
-.estado {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 5px 12px;
-  border-radius: 999px;
-  font: 600 0.8rem/1.2 var(--titulo);
-}
-
-.estado::before {
-  content: "";
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-
-.estado-pronto {
-  background: var(--broto);
-  color: var(--mata);
-}
-
-.estado-pronto::before {
-  background: var(--folha);
-}
-
-.estado-andamento {
-  background: #f7ecc6;
-  color: #5c4500;
-}
-
-.estado-andamento::before {
-  background: var(--milho);
-}
-
-/* Perguntas */
-.perguntas {
+/* A situação é uma passada: cheia quando está pronto, tracejada quando falta. */
+.situacao {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  padding-top: 6px;
+  font: 700 0.95rem/1 var(--titulo);
 }
 
-.perguntas details {
-  border: 1px solid var(--giz);
-  border-radius: 22px;
-  background: var(--papel);
+.situacao::before {
+  content: "";
+  width: 56px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--folha);
 }
 
-.perguntas summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  min-height: 60px;
-  padding: 12px 22px;
-  font: 600 1.08rem/1.3 var(--titulo);
-  color: var(--mata);
+.situacao-andamento::before {
+  background: repeating-linear-gradient(90deg, var(--milho) 0 10px, transparent 10px 16px);
+}
+
+/* ---------- Perguntas ---------- */
+.perguntas {
+  padding-top: var(--espaco);
+}
+
+.perguntas-grade {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  align-items: start;
+  gap: clamp(32px, 5vw, 96px);
+}
+
+.perguntas-titulo {
+  position: sticky;
+  top: 120px;
+}
+
+.lista-perguntas details {
+  border-top: 1px solid var(--giz);
+}
+
+.lista-perguntas details:last-child {
+  border-bottom: 1px solid var(--giz);
+}
+
+.lista-perguntas summary {
+  position: relative;
+  padding: 20px 56px 20px 0;
   cursor: pointer;
+  font: 700 clamp(1.05rem, 1.4vw, 1.25rem) / 1.25 var(--titulo);
+  letter-spacing: -0.02em;
   list-style: none;
 }
 
-.perguntas summary::-webkit-details-marker {
+.lista-perguntas summary::-webkit-details-marker {
   display: none;
 }
 
-.perguntas summary::after {
-  content: "+";
-  flex: none;
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: var(--broto);
-  font: 600 1.2rem/1 var(--titulo);
+.lista-perguntas summary::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  width: 20px;
+  height: 20px;
+  background:
+    linear-gradient(var(--mata), var(--mata)) center / 100% 3px no-repeat,
+    linear-gradient(var(--mata), var(--mata)) center / 3px 100% no-repeat;
+  transform: translateY(-50%);
+  transition: transform 0.4s var(--suave);
 }
 
-.perguntas details[open] summary::after {
-  content: "–";
+.lista-perguntas details[open] summary::after {
+  transform: translateY(-50%) rotate(135deg);
 }
 
-.perguntas details p {
-  padding: 0 22px 20px;
+.lista-perguntas details p {
+  max-width: 44rem;
+  padding: 0 56px 22px 0;
   color: var(--tinta-suave);
+  animation: abre 0.5s var(--suave);
 }
 
-/* Contato: o único bloco de imagem cheia depois da abertura. */
+@keyframes abre {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+/* ---------- Contato: o bloco de milho ---------- */
 .contato {
-  padding-bottom: 72px;
+  padding-top: var(--espaco);
 }
 
 .contato-caixa {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 18px;
-  padding: clamp(40px, 7vw, 88px);
-  border-radius: 40px;
-  text-align: center;
-  background:
-    linear-gradient(180deg, rgba(21, 50, 31, 0.86), rgba(21, 50, 31, 0.72)),
-    url("/video/1-lavoura.jpg") center / cover,
-    var(--mata);
-  color: #dbe5d5;
+  align-items: flex-start;
+  gap: 22px;
+  padding: clamp(28px, 4.4vw, 72px);
+  border-radius: clamp(28px, 4vw, 64px);
+  background: var(--milho);
+  color: var(--mata);
 }
 
 .contato-caixa h2 {
-  max-width: 18ch;
-  color: var(--algodao);
-  font-size: clamp(2.1rem, 4.4vw, 3.4rem);
+  max-width: 16ch;
+  font-size: clamp(2.1rem, 4.8vw, 4.8rem);
+  line-height: 0.98;
+  letter-spacing: -0.05em;
 }
 
 .contato-caixa p {
-  max-width: 32rem;
-  font-size: 1.15rem;
+  max-width: 40rem;
+  font-size: clamp(1rem, 1.25vw, 1.15rem);
 }
 
 .pendente {
-  padding: 12px 18px;
-  border: 2px dashed var(--milho);
-  border-radius: 16px;
-  color: var(--milho);
-  font-weight: 600;
+  padding: 8px 16px;
+  border: 2px dashed var(--mata);
+  border-radius: 12px;
+  font-weight: 700;
 }
 
-/* Rodapé */
+/* ---------- Rodapé: uma barra verde, simples ---------- */
 .rodape {
-  padding: 36px 0;
+  margin-top: var(--espaco);
+  padding: clamp(36px, 4vw, 56px) 0 clamp(28px, 3vw, 40px);
   background: var(--mata);
   color: #cfdcc9;
 }
 
 .rodape-linha {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 32px;
+  gap: 20px 40px;
 }
 
 .rodape .marca {
   color: #fff;
 }
 
-.rodape p {
-  max-width: 40rem;
+.rodape nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.rodape nav a {
+  padding: 8px 14px;
+  border-radius: 999px;
+  font: 600 0.95rem/1 var(--titulo);
+  text-decoration: none;
+}
+
+.rodape nav a:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.rodape-legal {
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.rodape-legal p {
+  max-width: 60rem;
   font-size: 0.85rem;
-  text-align: right;
 }
 
 .erro {
@@ -1096,124 +1115,6 @@ h1 {
   gap: 16px;
   width: min(640px, 100% - 40px);
   margin: 20vh auto;
-}
-
-/* Telas estreitas */
-@media (max-width: 960px) {
-  .topo nav {
-    display: none;
-  }
-
-  .topo-linha {
-    justify-content: space-between;
-  }
-
-  .recursos {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .duas-colunas,
-  .painel,
-  .para-quem {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 32px;
-  }
-
-  .para-quem {
-    gap: 14px;
-  }
-
-  .quadro .cartao {
-    grid-column: 1 / -1;
-  }
-
-  .faixa {
-    padding: 24px;
-  }
-
-  .secao {
-    padding-top: 64px;
-  }
-
-  .painel {
-    padding: 32px 24px;
-  }
-
-  .rodape-linha {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .rodape p {
-    text-align: left;
-  }
-}
-
-@media (max-width: 620px) {
-  body {
-    font-size: 1rem;
-  }
-
-  .recursos {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .cartao {
-    padding: 24px;
-  }
-
-  .faixa {
-    padding: 16px;
-    border-radius: 32px;
-  }
-
-  .faixa > div:last-child {
-    padding: 0 8px 12px;
-  }
-
-  .relatorio {
-    padding: 18px;
-  }
-
-  .relatorio-numeros {
-    gap: 10px;
-  }
-
-  .heroi-lema {
-    letter-spacing: 0.24em;
-    text-indent: 0.24em;
-  }
-
-  .passos li {
-    grid-template-columns: 48px minmax(0, 1fr);
-    gap: 16px;
-  }
-
-  .passadas {
-    width: 48px;
-  }
-
-  .botao {
-    width: 100%;
-  }
-
-  .topo .botao {
-    width: auto;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
-
-  .fundo-linhas {
-    animation: none;
-  }
-
-  .fundo-video {
-    display: none;
-  }
 }
 
 /* O aplicativo: a captura da tela Início dentro da moldura do celular. */
@@ -1230,4 +1131,115 @@ h1 {
   width: 100%;
   height: auto;
   border-radius: 40px;
+}
+
+/* ---------- Telas estreitas ---------- */
+@media (max-width: 960px) {
+  .topo nav {
+    display: none;
+  }
+
+  .topo-linha {
+    justify-content: space-between;
+  }
+
+  .produto-grade,
+  .linha-demo {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .produto-titulo,
+  .produto-texto,
+  .produto-cena,
+  .linha-demo .texto,
+  .linha-demo .demo,
+  .linha-demo.inversa .texto,
+  .linha-demo.inversa .demo {
+    grid-column: 1 / -1;
+    grid-row: auto;
+  }
+
+  .linha-demo .demo {
+    margin-top: 36px;
+  }
+
+  .recursos-grade,
+  .relatorios-grade,
+  .monitor-grade,
+  .publico-grade,
+  .integracao-grade,
+  .perguntas-grade {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 44px;
+  }
+
+  .recursos-titulo,
+  .publico-titulo,
+  .perguntas-titulo {
+    position: static;
+  }
+
+  .relatorios-papel {
+    justify-self: stretch;
+  }
+
+  .monitor-mapa {
+    order: 2;
+  }
+}
+
+@media (max-width: 620px) {
+  body {
+    font-size: 1rem;
+  }
+
+  .relatorio-numeros {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .relatorio-maquinas div {
+    grid-template-columns: 6.4rem minmax(0, 1fr) 3rem;
+  }
+
+  .recursos li {
+    grid-template-columns: 40px minmax(0, 1fr);
+    column-gap: 16px;
+  }
+
+  .recursos li::before {
+    width: 28px;
+  }
+
+  .etapas li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .topo .botao {
+    min-height: 40px;
+    padding: 0 16px;
+    font-size: 0.9rem;
+  }
+
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .fundo-linhas {
+    animation: none;
+  }
+
+  .fundo-video {
+    display: none;
+  }
+
+  .heroi-lema b,
+  .heroi-lema i,
+  .heroi-passada i,
+  .heroi-logo {
+    animation: none;
+  }
 }

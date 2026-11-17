@@ -1,15 +1,5 @@
-Vídeos de fundo da abertura do site.
+Esta pasta não é mais usada para o vídeo da abertura.
 
-Coloque aqui os arquivos .mp4 (H.264, sem áudio). Todos os .mp4 desta pasta entram no site:
-com um só, ele repete; com vários, tocam em sequência, em ordem alfabética do nome
-(use nomes como 1-plantio.mp4, 2-colheita.mp4 para escolher a ordem).
-
-Opcional, com o MESMO nome do .mp4:
-  .webm  versão menor (VP9), usada primeiro quando existe
-  .jpg   imagem que aparece antes de o vídeo carregar
-
-Recomendado: 1280x720 ou 1920x1080, até uns 4 MB cada. Cena calma e mais escura funciona melhor
-atrás do texto. Use vídeos com licença para uso comercial ou filmagem própria.
-
-Sem vídeo nesta pasta, o site mostra um fundo animado de fileiras de plantio.
-A lista é montada quando o site é gerado: depois de trocar os arquivos, gere o site de novo.
+O vídeo de fundo fica no S3 (www.talhio.com.br/media/hero/1-soja.mp4, .webm e .jpg) e o endereço está em
+vite.config.ts. Os vídeos antigos (lavoura e colheita) estão em ~/TALHIO-APP/videos-antigos-do-site.
+Ao publicar o site, o `aws s3 sync` NÃO pode apagar o prefixo media/: use --exclude "media/*".

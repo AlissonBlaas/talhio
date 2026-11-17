@@ -1,9 +1,10 @@
+import { Animacoes } from "../componentes/Animacoes";
 import { Celular } from "../componentes/Celular";
 import { FundoDoCampo } from "../componentes/FundoDoCampo";
-import { Icone, Marca } from "../componentes/Icone";
-import { MapaDaFazenda } from "../componentes/MapaDaFazenda";
+import { Marca } from "../componentes/Icone";
 import { conversa, escala, integracao, noMonitor, paraQuem, perguntas, recursos, relatorio, sobreORelatorio } from "../conteudo";
 import { contato, site } from "../site";
+import type { CSSProperties } from "react";
 import type { Route } from "./+types/home";
 
 export function meta({}: Route.MetaArgs) {
@@ -45,6 +46,9 @@ export function meta({}: Route.MetaArgs) {
 
 const destino = contato.externo ? { target: "_blank", rel: "noopener" } : {};
 
+/** Variável de CSS inline (atraso da animação, tamanho da barra), sem repetir o cast em todo lugar. */
+const v = (valores: Record<string, string | number>) => valores as CSSProperties;
+
 function Relatorio() {
   return (
     <figure className="relatorio" aria-label="Exemplo de relatório do dia no Talhio, com dados de demonstração">
@@ -66,21 +70,24 @@ function Relatorio() {
           <div key={maquina.nome}>
             <span>{maquina.nome}</span>
             <i>
-              <b style={{ width: `${maquina.parte}%` }} />
+              <b style={v({ "--parte": maquina.parte })} />
             </i>
             <strong>{maquina.area}</strong>
           </div>
         ))}
       </div>
+      <p className="relatorio-resumo">{relatorio.resumo}</p>
     </figure>
   );
 }
 
 function Lista({ itens }: { itens: readonly string[] }) {
   return (
-    <ul className="lista-feito">
+    <ul className="linhas">
       {itens.map((item) => (
-        <li key={item}>{item}</li>
+        <li key={item}>
+          {item}
+        </li>
       ))}
     </ul>
   );
@@ -92,7 +99,7 @@ export default function Home() {
       <header className="topo">
         <div className="largura topo-linha">
           <a className="marca" href="/" aria-label="Talhio, início">
-            <Marca tamanho={26} sobre="escuro" />
+            <Marca tamanho={26} sobre="auto" />
             Talhio
           </a>
           <nav aria-label="Seções da página">
@@ -108,67 +115,63 @@ export default function Home() {
         </div>
       </header>
 
+      <Animacoes />
       <main>
         <section className="heroi">
           <FundoDoCampo />
           <div className="largura heroi-centro">
             <h1>
               <span className="heroi-logo">
-                <Marca tamanho={104} sobre="escuro" />
+                <Marca tamanho={104} sobre="claro" />
                 Talhio
               </span>
               <span className="heroi-lema">
-                Planeje <i aria-hidden="true">/</i> Opere <i aria-hidden="true">/</i> Relatórios
+                <span className="pal">
+                  <b style={v({ "--i": 0 })}>Planeje</b>
+                </span>
+                <i aria-hidden="true">/</i>
+                <span className="pal">
+                  <b style={v({ "--i": 1 })}>Opere</b>
+                </span>
+                <i aria-hidden="true">/</i>
+                <span className="pal">
+                  <b style={v({ "--i": 2 })}>Relatórios</b>
+                </span>
+              </span>
+              <span className="heroi-passada" aria-hidden="true">
+                <i style={v({ "--i": 0 })} />
+                <i style={v({ "--i": 1 })} />
+                <i style={v({ "--i": 2 })} />
               </span>
             </h1>
-            <div className="heroi-acoes">
-              <a className="botao" href={contato.href} {...destino}>
-                {contato.rotulo}
-              </a>
-              <a className="botao botao-vidro" href="#produto">
-                Conhecer o produto
-              </a>
-            </div>
-            <a className="heroi-seta" href="#produto" aria-label="Descer para o produto">
-              <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="m5 9 7 7 7-7" />
-              </svg>
-            </a>
           </div>
         </section>
 
-        <section id="produto" className="secao">
-          <div className="largura duas-colunas">
-            <div>
-              <div className="secao-intro">
-                <p className="sobretitulo">Gestão de operações no campo</p>
-                <h2>Do planejamento ao relatório, tudo em um só lugar.</h2>
-                <p>Organize as operações da fazenda, acompanhe a execução em tempo real e receba relatórios prontos, feitos com os dados das suas máquinas.</p>
-              </div>
+        <section id="produto" className="produto">
+          <div className="largura produto-grade">
+            <h2 className="gigante produto-titulo">Do planejamento ao relatório, tudo em um só lugar.</h2>
+            <div className="produto-texto">
+              <p>Organize as operações da fazenda, acompanhe a execução em tempo real e receba relatórios prontos, feitos com os dados das suas máquinas.</p>
             </div>
-            <div className="vitrine">
-              <svg className="vitrine-arcos" viewBox="0 0 400 300" fill="none" strokeLinecap="round" aria-hidden="true">
-                <path d="M40 300 Q150 40 420 30" stroke="#E7B31F" strokeWidth="26" />
-                <path d="M96 300 Q190 96 420 84" stroke="#3F7A2C" strokeWidth="26" />
-                <path d="M152 300 Q230 150 420 138" stroke="#15321F" strokeWidth="26" />
+            <div className="produto-cena">
+              <svg className="produto-arcos" viewBox="0 0 1600 640" preserveAspectRatio="xMidYMax slice" fill="none" strokeLinecap="round" aria-hidden="true">
+                <path d="M-60 600 Q 520 90 1700 130" stroke="#E7B31F" strokeWidth="40" />
+                <path d="M-60 680 Q 600 190 1700 230" stroke="#3F7A2C" strokeWidth="40" />
+                <path d="M-60 760 Q 680 290 1700 330" stroke="#15321F" strokeWidth="40" />
               </svg>
               <Celular />
             </div>
           </div>
         </section>
 
-        <section id="recursos" className="secao">
-          <div className="largura">
-            <div className="secao-intro">
-              <p className="sobretitulo">O que o Talhio faz</p>
-              <h2>Menos rádio e planilha. Mais tempo na lavoura.</h2>
+        <section id="recursos" className="recursos-faixa">
+          <div className="largura recursos-grade">
+            <div className="recursos-titulo">
+              <h2 className="gigante">Menos rádio e planilha. Mais tempo na lavoura.</h2>
             </div>
             <ul className="recursos">
               {recursos.map((recurso) => (
                 <li key={recurso.titulo}>
-                  <span>
-                    <Icone nome={recurso.icone} tamanho={26} />
-                  </span>
                   <h3>{recurso.titulo}</h3>
                   <p>{recurso.texto}</p>
                 </li>
@@ -177,95 +180,105 @@ export default function Home() {
           </div>
         </section>
 
-        <section id="relatorios" className="secao">
-          <div className="largura duas-colunas">
+        <section id="relatorios" className="relatorios">
+          <div className="largura relatorios-grade">
             <div>
-              <div className="secao-intro">
-                <p className="sobretitulo">Dados das máquinas em ação</p>
-                <h2>Relatórios automáticos e confiáveis.</h2>
-                <p>Ninguém preenche nada. Os números saem do que as máquinas registraram e chegam com um resumo escrito.</p>
-              </div>
+              <h2 className="grande">O relatório do dia já chega pronto.</h2>
+              <p className="apoio">
+                Ninguém preenche nada. Os números saem do que as máquinas registraram e chegam com um resumo escrito.
+              </p>
               <Lista itens={sobreORelatorio} />
             </div>
-            <div>
+            <div className="relatorios-papel">
               <Relatorio />
               <p className="legenda">Exemplo com dados de demonstração.</p>
             </div>
           </div>
         </section>
 
-        <section className="secao">
-          <div className="largura quadro">
-            <article className="cartao">
-              <div className="cartao-texto">
-                <h3>Escala por turno, no WhatsApp</h3>
-                <p>Escolha quem opera cada máquina em cada turno. A escala e as trocas chegam no grupo da equipe.</p>
-              </div>
-              <div className="mensagem" role="img" aria-label="Exemplo de mensagem de escala no grupo da equipe, com dados de demonstração">
-                <strong>{escala.titulo}</strong>
-                {escala.linhas.map((linha) => (
-                  <span key={linha}>{linha}</span>
-                ))}
-                <small>{escala.hora}</small>
-              </div>
-            </article>
-
-            <article className="cartao">
-              <div className="cartao-texto">
-                <h3>Pergunte à IA, por texto ou por voz</h3>
-                <p>Ela responde com os dados da sua fazenda e ensina a usar o aplicativo. Os números vêm do sistema: a IA não faz conta de cabeça.</p>
-              </div>
-              <div className="chat" role="img" aria-label="Exemplo de conversa com a IA do Talhio, com dados de demonstração">
-                {conversa.map((fala) => (
-                  <p key={fala.texto} className={`fala fala-${fala.de}`}>
-                    {fala.texto}
-                  </p>
-                ))}
-              </div>
-            </article>
-          </div>
-        </section>
-
-        <section id="monitor" className="secao">
+        <section className="equipe">
           <div className="largura">
-            <div className="faixa duas-colunas">
-              <div className="faixa-mapa">
-                <MapaDaFazenda />
-                <div className="faixa-legenda" aria-hidden="true">
-                  <span>
-                    <i className="traco traco-feito" />
-                    Realizado <strong>72%</strong>
-                  </span>
-                  <span>
-                    <i className="traco traco-falta" />
-                    Pendente <strong>28%</strong>
-                  </span>
+            <div className="linha-demo">
+              <div className="texto">
+                <h3 className="medio">Escala por turno, no WhatsApp.</h3>
+                <p className="apoio">
+                  Escolha quem opera cada máquina em cada turno. A escala e as trocas chegam no grupo da equipe.
+                </p>
+              </div>
+              <div className="demo">
+                <div className="mensagem" role="img" aria-label="Exemplo de mensagem de escala no grupo da equipe, com dados de demonstração">
+                  <strong>{escala.titulo}</strong>
+                  {escala.linhas.map((linha) => (
+                    <span key={linha}>
+                      {linha}
+                    </span>
+                  ))}
+                  <small>{escala.hora}</small>
                 </div>
               </div>
-              <div>
-                <div className="secao-intro">
-                  <p className="sobretitulo">Direto no monitor</p>
-                  <h2>O que você planeja chega ao monitor da máquina.</h2>
-                  <p>O operador liga o trator e o serviço do dia já está lá. Tudo sai do nosso aplicativo, sem pendrive, sem papel e sem treinamento.</p>
+            </div>
+
+            <div className="linha-demo inversa">
+              <div className="texto">
+                <h3 className="medio">Pergunte à IA, por texto ou por voz.</h3>
+                <p className="apoio">
+                  Ela responde com os dados da sua fazenda e ensina a usar o aplicativo. Os números vêm do sistema: a IA não faz conta de cabeça.
+                </p>
+              </div>
+              <div className="demo">
+                <div className="chat" role="img" aria-label="Exemplo de conversa com a IA do Talhio, com dados de demonstração">
+                  {conversa.map((fala) => (
+                    <p key={fala.texto} className={`fala fala-${fala.de}`}>
+                      {fala.texto}
+                    </p>
+                  ))}
                 </div>
-                <Lista itens={noMonitor} />
               </div>
             </div>
           </div>
         </section>
 
-        <section className="secao">
-          <div className="largura">
-            <div className="secao-intro centro">
-              <p className="sobretitulo">Para diferentes realidades</p>
-              <h2>Soluções que se adaptam à sua fazenda.</h2>
+        <section id="monitor" className="monitor">
+          <div className="largura monitor-grade">
+            <div className="monitor-mapa">
+              <img src="/mapa-app.jpg" width={1358} height={672} alt="Mapa do aplicativo Talhio: imagem de satélite da fazenda com as máquinas marcadas como trabalhando, paradas ou sem sinal" loading="lazy" decoding="async" />
             </div>
-            <ul className="para-quem">
+            <div className="monitor-texto">
+              <h2 className="grande">O que você planeja chega ao monitor da máquina.</h2>
+              <p className="apoio">
+                O operador liga o trator e o serviço do dia já está lá. Tudo sai do nosso aplicativo, sem pendrive, sem papel e sem treinamento.
+              </p>
+              <Lista itens={noMonitor} />
+            </div>
+          </div>
+        </section>
+
+        <section className="publico">
+          <div className="largura publico-grade">
+            <h2 className="grande publico-titulo">Para quem decide no campo e para quem acompanha de longe.</h2>
+            <ul>
               {paraQuem.map((item) => (
                 <li key={item.titulo}>
-                  <span>
-                    <Icone nome={item.icone} tamanho={26} />
-                  </span>
+                  <h3>{item.titulo}</h3>
+                  <p>{item.texto}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+
+        <section id="john-deere" className="integracao">
+          <div className="largura integracao-grade">
+            <div className="integracao-texto">
+              <h2 className="grande">Os dados vêm das suas máquinas John Deere.</h2>
+              <p className="apoio">
+                O Talhio conversa com o John Deere Operations Center com a autorização da fazenda, dada na página da própria John Deere. Nenhuma senha passa pelo Talhio, e a fazenda cancela o acesso quando quiser.
+              </p>
+            </div>
+            <ul className="etapas">
+              {integracao.map((item) => (
+                <li key={item.titulo}>
+                  <span className={`situacao situacao-${item.estado === "Pronto" ? "pronto" : "andamento"}`}>{item.estado}</span>
                   <div>
                     <h3>{item.titulo}</h3>
                     <p>{item.texto}</p>
@@ -276,34 +289,10 @@ export default function Home() {
           </div>
         </section>
 
-        <section id="john-deere" className="secao">
-          <div className="largura">
-            <div className="painel">
-              <div className="secao-intro">
-                <h2>Os dados vêm das suas máquinas John Deere.</h2>
-                <p>
-                  O Talhio conversa com o John Deere Operations Center com a autorização da fazenda, dada na página da própria John Deere. Nenhuma senha passa pelo Talhio, e a fazenda cancela o acesso quando quiser.
-                </p>
-              </div>
-              <ul className="integracao">
-                {integracao.map((item) => (
-                  <li key={item.titulo}>
-                    <span className={`estado estado-${item.estado === "Pronto" ? "pronto" : "andamento"}`}>{item.estado}</span>
-                    <h3>{item.titulo}</h3>
-                    <p>{item.texto}</p>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </section>
-
-        <section id="perguntas" className="secao">
-          <div className="largura estreita">
-            <div className="secao-intro">
-              <h2>O que costumam perguntar.</h2>
-            </div>
-            <div className="perguntas">
+        <section id="perguntas" className="perguntas">
+          <div className="largura perguntas-grade">
+            <h2 className="grande perguntas-titulo">O que costumam perguntar.</h2>
+            <div className="lista-perguntas">
               {perguntas.map((item) => (
                 <details key={item.pergunta}>
                   <summary>{item.pergunta}</summary>
@@ -314,16 +303,16 @@ export default function Home() {
           </div>
         </section>
 
-        <section id="contato" className="secao contato">
+        <section id="contato" className="contato">
           <div className="largura">
             <div className="contato-caixa">
-              <h2>Pronto para evoluir a gestão da sua fazenda?</h2>
+              <h2 className="gigante">Pronto para evoluir a gestão da sua fazenda?</h2>
               <p>Veja na prática como o Talhio funciona na sua operação. Conte quantas máquinas John Deere você tem e a gente combina uma demonstração.</p>
               {contato.href === "#contato" ? (
                 // Enquanto o contato não estiver no .env, o espaço fica marcado para não ir ao ar sem ele.
                 <p className="pendente">[SEU WHATSAPP OU E-MAIL DE CONTATO]</p>
               ) : (
-                <a className="botao botao-milho" href={contato.href} {...destino}>
+                <a className="botao botao-escuro botao-grande" href={contato.href} {...destino}>
                   {contato.rotulo}
                 </a>
               )}
@@ -334,10 +323,19 @@ export default function Home() {
 
       <footer className="rodape">
         <div className="largura rodape-linha">
-          <span className="marca">
-            <Marca tamanho={24} sobre="escuro" />
+          <a className="marca" href="#" aria-label="Talhio, voltar ao topo">
+            <Marca tamanho={30} sobre="escuro" />
             Talhio
-          </span>
+          </a>
+          <nav aria-label="Seções da página">
+            <a href="#recursos">Recursos</a>
+            <a href="#relatorios">Relatórios</a>
+            <a href="#john-deere">John Deere</a>
+            <a href="#perguntas">Perguntas</a>
+            <a href="#contato">Contato</a>
+          </nav>
+        </div>
+        <div className="largura rodape-legal">
           <p>
             © {new Date().getFullYear()} Talhio. John Deere, Operations Center e JDLink são marcas da Deere &amp; Company. O Talhio é um produto independente, sem vínculo com a Deere &amp; Company.
           </p>

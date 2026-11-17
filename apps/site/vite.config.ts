@@ -1,23 +1,13 @@
-import { existsSync, readdirSync } from "node:fs";
 import { reactRouter } from "@react-router/dev/vite";
 import { defineConfig } from "vite";
 
 /**
- * Vídeos de fundo da abertura: todo .mp4 em public/video, em ordem alfabética. Para cada um, usa
- * também o .webm e a capa .jpg de mesmo nome, se existirem. A lista é fixada no build.
+ * Vídeo de fundo da abertura: fica no S3 (fora do build do site, em /media/hero) e o site usa o link dele.
+ * Trocar o vídeo = subir outro arquivo para o mesmo endereço (ou mudar o link abaixo) e gerar o site de novo.
+ * Mesmo nome com .mp4 (H.264), .webm (usado primeiro) e .jpg (capa que aparece antes de carregar).
  */
-function videosDeFundo() {
-  const pasta = "public/video";
-  const arquivos = existsSync(pasta) ? readdirSync(pasta) : [];
-  const irmao = (mp4: string, extensao: string) => {
-    const nome = mp4.replace(/\.mp4$/i, extensao);
-    return arquivos.includes(nome) ? `/video/${nome}` : null;
-  };
-  return arquivos
-    .filter((arquivo) => /\.mp4$/i.test(arquivo))
-    .sort()
-    .map((mp4) => ({ mp4: `/video/${mp4}`, webm: irmao(mp4, ".webm"), capa: irmao(mp4, ".jpg") }));
-}
+const VIDEO_DO_FUNDO = "http://www.talhio.com.br/media/hero/1-soja";
+const videosDeFundo = () => [{ mp4: `${VIDEO_DO_FUNDO}.mp4`, webm: `${VIDEO_DO_FUNDO}.webm`, capa: `${VIDEO_DO_FUNDO}.jpg` }];
 
 export default defineConfig({
   plugins: [reactRouter()],
