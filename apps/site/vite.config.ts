@@ -6,7 +6,8 @@ import { defineConfig } from "vite";
  * Trocar o vídeo = subir outro arquivo para o mesmo endereço (ou mudar o link abaixo) e gerar o site de novo.
  * Mesmo nome com .mp4 (H.264), .webm (usado primeiro) e .jpg (capa que aparece antes de carregar).
  */
-const VIDEO_DO_FUNDO = "http://www.talhio.com.br/media/hero/1-soja";
+// Caminho do mesmo site (www.talhio.com.br/media/hero/1-soja.*): funciona em HTTP e em HTTPS, sem "conteúdo misto".
+const VIDEO_DO_FUNDO = "/media/hero/1-soja";
 const videosDeFundo = () => [{ mp4: `${VIDEO_DO_FUNDO}.mp4`, webm: `${VIDEO_DO_FUNDO}.webm`, capa: `${VIDEO_DO_FUNDO}.jpg` }];
 
 export default defineConfig({

@@ -509,6 +509,15 @@ normalmente, porque só falam com o provedor. Não existe "excluir conta" na API
 tem de recusar (e a Apple exige excluir conta dentro do app para apps com cadastro). Para ligar em produção: pôr
 `DEMO_EMAIL` no segredo `talhio/api-env` e rodar `./infra/aplicar-segredos.sh` (ou recriar o contêiner com o env novo).
 
+Publicação do site (17/11): o site estático fica no bucket S3 `www.talhio.com.br` e é servido por um CloudFront
+(`E2FN50GAC4A7IH`, domínio `d3w3h26tb8hedp.cloudfront.net`, certificado ACM `talhio.com.br` + `www` em us-east-1, HTTP vira
+HTTPS). No Registro.br, `www` é CNAME para o CloudFront; `talhio.com.br` (apex) é A para a EC2, onde o Caddy (`/srv/talhio-caddy/Caddyfile`)
+emite o certificado e redireciona para `https://www.talhio.com.br`. Para publicar: `VITE_URL_DO_SITE=https://www.talhio.com.br pnpm build`
+em `apps/site`, depois `aws s3 sync build/client s3://www.talhio.com.br --delete --exclude "video/LEIA-ME.txt" --exclude "media/*"` (o
+`media/*` é o vídeo da abertura, que fica só no S3: sem o `--exclude` o sync o apaga) e `aws cloudfront create-invalidation --distribution-id
+E2FN50GAC4A7IH --paths "/*"` (sem isso o CloudFront guarda a versão antiga por até 24 h). O vídeo é referido como `/media/hero/1-soja.*`
+(`vite.config.ts`). Só a abertura e a troca do menu ao rolar têm animação; o resto da página é parado de propósito (público do campo).
+
 ## Referências
 
 - O que a API da John Deere entrega, limites e links: [docs/JOHN-DEERE-API.md](./docs/JOHN-DEERE-API.md).
