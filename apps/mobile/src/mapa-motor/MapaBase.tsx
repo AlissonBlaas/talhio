@@ -73,6 +73,7 @@ export const MapaBase = memo(function MapaBase({ ref, limites, margem = SEM_MARG
       },
       enquadrar: (area, opcoes = {}) => cameraRef.current?.fitBounds(area, { padding: opcoes.margem ?? SEM_MARGEM, duration: opcoes.duracaoMs ?? 600 }),
       projetar: async (posicao) => (await mapaRef.current?.project(posicao)) ?? null,
+      desprojetar: async (ponto) => ((await mapaRef.current?.unproject(ponto)) as LngLat | undefined) ?? null,
     }),
     [],
   );

@@ -16,4 +16,6 @@ export interface MapaControle {
   enquadrar(limites: Limites, opcoes?: { margem?: Margem; duracaoMs?: number }): void;
   /** Onde um ponto do mapa está na tela agora. */
   projetar(posicao: LngLat): Promise<PontoTela | null>;
+  /** O caminho de volta: que ponto do mapa está nesse lugar da tela agora. */
+  desprojetar(ponto: PontoTela): Promise<LngLat | null>;
 }

@@ -12,6 +12,7 @@ import { hectares } from '@/shared/lib/format';
 import { cores, fontes } from '@/shared/theme/tokens';
 
 import { PainelDesenho } from '../components/PainelDesenho';
+import { LADO_DA_ALCA, useArrastarCanto } from '../hooks/useArrastarCanto';
 import { useCriarTalhao } from '../hooks/useCriarTalhao';
 import { useDesenhoTalhao, type Canto } from '../hooks/useDesenhoTalhao';
 import { useTalhoes } from '../hooks/useTalhoes';
@@ -42,6 +43,14 @@ export function NovoTalhaoScreen() {
   const [nome, setNome] = useState('');
   const [tentouSalvar, setTentouSalvar] = useState(false);
   const controle = useRef<MapaControle>(null);
+  const travado = !!salvo || salvando;
+  const arrasto = useArrastarCanto({
+    controle,
+    selecionado: travado ? null : desenho.selecionado,
+    cantos: desenho.cantos,
+    aoMover: desenho.mover,
+    aoTocar: desenho.selecionar,
+  });
   // Talhões que já existem, como referência (montado uma vez por lista).
   const referencia = useMemo<GeoJSON.FeatureCollection<GeoJSON.Polygon>>(
     () => ({ type: 'FeatureCollection', features: talhoes.map((t) => ({ type: 'Feature', properties: {}, geometry: t.contorno })) }),
@@ -120,11 +129,18 @@ export function NovoTalhaoScreen() {
   return (
     <KeyboardAvoidingView style={styles.tela} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={styles.mapaArea}>
-        <MapaBase ref={controle} limites={limites} margem={{ top: top + 120, right: 40, bottom: 40, left: 40 }} aoTocar={(posicao, ponto) => void aoTocarMapa(posicao, ponto)}>
+        <MapaBase ref={controle} limites={limites} margem={{ top: top + 120, right: 40, bottom: 40, left: 40 }} aoTocar={(posicao, ponto) => void aoTocarMapa(posicao, ponto)} aoParar={arrasto.aoPararOMapa}>
           <CamadaContornos geo={referencia} estilo="referencia" />
           <CamadaDesenhoTalhao geo={desenho.geo} salvo={!!salvo} />
         </MapaBase>
+        {/* Área de toque sobre o canto selecionado: o dedo que começa aqui arrasta o canto, e o mapa fica parado. */}
+        {arrasto.alca ? <View {...arrasto.manipuladores} accessibilityLabel="Arrastar o canto selecionado" style={[styles.alca, arrasto.alca]} /> : null}
         <BotoesDeZoom controle={controle} style={styles.zoom} />
+        {!travado && desenho.selecionado !== null && desenho.cantos.length >= 3 ? (
+          <Pressable accessibilityRole="button" onPress={desenho.arredondarSelecionado} style={styles.arredondar}>
+            <Text style={styles.arredondarTexto}>Arredondar canto</Text>
+          </Pressable>
+        ) : null}
 
         <View style={[styles.topo, { top: top + 5 }]}>
           <View style={styles.linha}>
@@ -142,7 +158,7 @@ export function NovoTalhaoScreen() {
               </View>
               <Text style={styles.dicaTexto}>
                 {desenho.selecionado !== null
-                  ? `Canto ${desenho.selecionado + 1} selecionado: toque onde ele deve ficar, ou em Remover para tirar`
+                  ? `Canto ${desenho.selecionado + 1} selecionado: arraste para ajustar ou toque onde ele deve ficar`
                   : DICAS[Math.min(desenho.cantos.length, 3)]}
               </Text>
             </View>
@@ -183,6 +199,9 @@ const styles = StyleSheet.create({
   espera: { flex: 1, backgroundColor: cores.fundo },
   mapaArea: { flex: 1 },
   zoom: { position: 'absolute', right: 16, bottom: 16 },
+  alca: { position: 'absolute', width: LADO_DA_ALCA, height: LADO_DA_ALCA, borderRadius: LADO_DA_ALCA / 2 },
+  arredondar: { position: 'absolute', left: 16, bottom: 16, height: 44, borderRadius: 22, paddingHorizontal: 18, justifyContent: 'center', backgroundColor: cores.cartao },
+  arredondarTexto: { fontFamily: fontes.semi, fontSize: 14, color: cores.texto },
   topo: { position: 'absolute', left: 16, right: 16, gap: 10 },
   linha: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   redondo: { width: 44, height: 44, borderRadius: 22, backgroundColor: cores.cartao, alignItems: 'center', justifyContent: 'center' },

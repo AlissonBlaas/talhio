@@ -1,6 +1,8 @@
 import { areaHaDoPoligono, type Poligono } from '@talhio/shared';
 import { useMemo, useState } from 'react';
 
+import { arredondarCanto } from '../arredondar';
+
 export type Canto = [lng: number, lat: number];
 
 /**
@@ -60,6 +62,14 @@ export function useDesenhoTalhao() {
     moverSelecionado: (canto: Canto) => {
       if (selecionado === null) return;
       setCantos((atuais) => atuais.map((c, i) => (i === selecionado ? canto : c)));
+      setSelecionado(null);
+    },
+    /** Leva um canto para a nova posição sem mexer na seleção: é o que acompanha o dedo durante o arrasto. */
+    mover: (indice: number, canto: Canto) => setCantos((atuais) => atuais.map((c, i) => (i === indice ? canto : c))),
+    /** Troca o canto selecionado por uma curva (pontos de verdade no contorno) e encerra a seleção. */
+    arredondarSelecionado: () => {
+      if (selecionado === null) return;
+      setCantos((atuais) => arredondarCanto(atuais, selecionado));
       setSelecionado(null);
     },
     /** Remove o canto selecionado ou, sem seleção, o último canto. */
