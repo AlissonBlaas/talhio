@@ -1,4 +1,4 @@
-import { PedirCodigoSchema } from '@talhio/shared';
+import { mascaraDeTelefone, PedirCodigoSchema } from '@talhio/shared';
 import { memo, useState } from 'react';
 import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -64,7 +64,9 @@ function PedirNumero() {
       </Text>
       <TextInput
         value={telefone}
-        onChangeText={setTelefone}
+        // A máscara põe o DDD entre parênteses, o espaço e o hífen enquanto a pessoa digita.
+        onChangeText={(texto) => setTelefone((anterior) => mascaraDeTelefone(texto, anterior))}
+        maxLength={20}
         placeholder="(47) 99999-0000"
         placeholderTextColor={cores.textoSuave}
         keyboardType="phone-pad"

@@ -40,6 +40,28 @@ export function normalizarTelefone(texto: string): string {
   return digitos.length === 10 || digitos.length === 11 ? `55${digitos}` : digitos;
 }
 
+/**
+ * Máscara do telefone brasileiro enquanto a pessoa digita: põe o parêntese do DDD, o espaço e o hífen sozinha.
+ * "47999990000" vira "(47) 99999-0000"; com 10 dígitos (fixo), "(47) 3333-0000". Aceita número colado com +55.
+ * `anterior` é o que estava no campo: apagar um caractere da máscara (o hífen, o parêntese) apaga o dígito antes dele,
+ * senão a máscara voltaria a pôr o mesmo caractere e a pessoa não conseguiria apagar.
+ */
+export function mascaraDeTelefone(texto: string, anterior = ''): string {
+  const soDigitos = (t: string) => t.replace(/\D/g, '');
+  let digitos = soDigitos(texto);
+  if (texto.length < anterior.length && digitos === soDigitos(anterior)) digitos = digitos.slice(0, -1);
+  // Colado com o código do país: fica só DDD + número.
+  if (digitos.length > 11 && digitos.startsWith('55')) digitos = digitos.slice(2);
+  digitos = digitos.slice(0, 11);
+  if (digitos.length === 0) return '';
+  if (digitos.length <= 2) return `(${digitos}`;
+  const ddd = digitos.slice(0, 2);
+  const numero = digitos.slice(2);
+  // Celular tem 9 dígitos (5 + 4); fixo tem 8 (4 + 4). Enquanto não chega ao nono, mostra no formato do fixo.
+  const corte = numero.length > 8 ? 5 : 4;
+  return numero.length <= corte ? `(${ddd}) ${numero}` : `(${ddd}) ${numero.slice(0, corte)}-${numero.slice(corte)}`;
+}
+
 export const PedirCodigoSchema = z.object({
   /** Número do WhatsApp que vai ser conectado (o do celular que a fazenda usa para falar com a equipe). */
   telefone: z
